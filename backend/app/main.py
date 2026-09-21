@@ -49,7 +49,7 @@ def create_tables_and_admin():
             db.add(User(email=settings.initial_admin_email, full_name="Administrador", password_hash=hash_password(settings.initial_admin_password), role="admin"))
             db.commit()
         initial_staff = [
-            ("Lily", "lily@integraprofesional.com", "employee"),
+            ("Lily", "lily@integraprofesional.com", "admin"),
             ("Norma", "norma@integraprofesional.com", "employee"),
             ("Angel", "angel@integraprofesional.com", "employee"),
             ("Jesus", "jesus@integraprofesional.com", "employee"),
