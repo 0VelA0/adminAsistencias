@@ -7,7 +7,7 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, user: User) =>
   const submit = async (event: FormEvent) => { event.preventDefault(); setLoading(true); setError(''); try { const result = await api<{ access_token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); onLogin(result.access_token, result.user) } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión') } finally { setLoading(false) } }
   return <main className="login">
     <section className="card">
-      <p className="eyebrow">INTEGRA PROFESIONAL</p>
+      <p className="eyebrow">INTEGRADORA PROFESIONAL</p>
       <h1>Control de asistencia</h1>
       <p className="muted">La sesión permanece en tu dispositivo para que no tengas que iniciar sesión cada día.</p>
       <form onSubmit={submit}>
