@@ -1,3 +1,51 @@
-export type User = { id: number; email: string; full_name: string; role: string }
-export type AttendanceRecord = { id: number; kind: string; recorded_at: string; distance_meters: number; accuracy_meters: number }
-export type AdminRecord = AttendanceRecord & { user_name: string; user_email: string }
+export type User = {
+    id: number
+    email: string
+    full_name: string
+    role: string
+    is_active: boolean
+}
+
+export type AttendanceRecord = {
+    id: number
+    kind: 'entry' | 'exit'
+    work_date: string
+    recorded_at: string
+    distance_meters: number
+    accuracy_meters: number
+    source: 'employee' | 'admin'
+    status: 'normal' | 'late'
+    note: string | null
+}
+
+export type AdminRecord = AttendanceRecord & {
+    user_name: string
+    user_email: string
+}
+
+export type AttendanceToday = {
+    work_date: string
+    entry: AttendanceRecord | null
+    exit: AttendanceRecord | null
+    is_on_vacation: boolean
+}
+
+export type VacationRequest = {
+    id: number
+    user_id: number
+    start_date: string
+    end_date: string
+    status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+    request_type: 'employee' | 'admin'
+    reason: string | null
+    admin_note: string | null
+    reviewed_by_id: number | null
+    reviewed_at: string | null
+    created_at: string
+    updated_at: string
+}
+
+export type AdminVacationRequest = VacationRequest & {
+    user_name: string
+    user_email: string
+}
