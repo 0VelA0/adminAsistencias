@@ -1535,7 +1535,8 @@ def create_admin_vacation(
 # FRONTEND ESTÁTICO
 # =========================================================
 
-frontend_path = Path(__file__).resolve().parent.parent / "static"
+frontend_path = Path(__file__).resolve().parent / "static"
+print(f"[DEBUG] frontend_path = {frontend_path}, exists={frontend_path.exists()}")
 
 if frontend_path.exists():
 
