@@ -188,7 +188,7 @@ export function VacationSection({
                         rows={3}
                     />
                 </label>
-
+                <br />
                 <button
                     type="submit"
                     disabled={working}
