@@ -7,6 +7,7 @@ import type {
     AttendanceRecord,
     AttendanceToday,
     User,
+    VacationRequest
 } from './lib/types'
 
 import { AppHeader } from './components/AppHeader'
@@ -14,6 +15,7 @@ import { LoginPage } from './pages/LoginPage'
 import { EmployeePage } from './pages/EmployeePage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AppSidebar } from './components/AppSidebar'
+import { VacationsPage } from './pages/VacationsPage'
 
 import './styles.css'
 
@@ -41,6 +43,9 @@ function App() {
         'dashboard' | 'attendance' | 'vacations' | 'history' | 'settings'
         >('dashboard')
 
+    const [vacationRequests, setVacationRequests] =
+        useState<VacationRequest[]>([])
+    
     const load = async (
         activeToken = token
     ) => {
@@ -84,10 +89,21 @@ function App() {
         }
     }
 
+    const loadVacationRequests = async () => {
+        const data = await api<VacationRequest[]>(
+            '/vacations/mine',
+            {},
+            token
+    )
+
+    setVacationRequests(data)
+}
+
 
     useEffect(() => {
         if (token) {
             load()
+            loadVacationRequests().catch(() => undefined)
         }
     }, [token])
 
@@ -150,22 +166,39 @@ function App() {
                         token={token}
                     />
                 ) : (
-                    <EmployeePage
-                        token={token}
-                        records={records}
-                        today={today}
-                        onRecord={record =>
-                            setRecords(
-                                old => [
-                                    record,
-                                    ...old,
-                                ]
-                            )
-                        }
-                        onTodayChange={
-                            setToday
-                        }
-                    />
+                    <>
+                        {activePage === 'dashboard' &&(
+                            <EmployeePage
+                                token={token}
+                                records={records}
+                                today={today}
+                                onRecord={record =>
+                                    setRecords(
+                                        old => [
+                                            record,
+                                            ...old,
+                                        ]
+                                    )
+                                }
+                                onTodayChange={
+                                    setToday
+                                }
+                                onNavigate={setActivePage}
+                                vacationRequests={vacationRequests}
+                                onRequestsChange={loadVacationRequests}
+                            />       
+                        )}
+
+                        {activePage === 'vacations' && (
+                            <VacationsPage
+                                token={token}
+                                requests={vacationRequests}
+                                onRequestsChange={loadVacationRequests}/>
+
+                        )}
+                            
+                    </>
+
                 )}
             </main>
         </div>

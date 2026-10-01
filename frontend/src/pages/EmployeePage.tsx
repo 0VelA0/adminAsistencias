@@ -10,6 +10,14 @@ import { RecordList } from '../components/RecordList'
 import { VacationSection } from '../components/VacationSection'
 import { AttendanceCard } from '../components/AttendanceCard'
 import { VacationSummaryCard } from '../components/VacationSummaryCard'
+import { PendingRequestsCard } from '../components/PendingRequestsCard'
+
+type Page =
+    | 'dashboard'
+    | 'attendance'
+    | 'vacations'
+    | 'history'
+    | 'settings'
 
 export function EmployeePage({
     token,
@@ -17,12 +25,18 @@ export function EmployeePage({
     today,
     onRecord,
     onTodayChange,
+    onNavigate,
+    vacationRequests,
+    onRequestsChange
 }: {
     token: string
     records: AttendanceRecord[]
     today: AttendanceToday
     onRecord: (record: AttendanceRecord) => void
     onTodayChange: (today: AttendanceToday) => void
+    onNavigate: (page: Page) => void
+    vacationRequests: VacationRequest[]
+    onRequestsChange: () => Promise<void>
 }) {
     const station = new URLSearchParams(
         window.location.search
@@ -31,22 +45,6 @@ export function EmployeePage({
     const [message, setMessage] = useState('')
     const [working, setWorking] = useState(false)
 
-    const [vacationRequests, setVacationRequests] =
-        useState<VacationRequest[]>([])
-
-    const loadVacationRequests = async () => {
-        const data = await api<VacationRequest[]>(
-            '/vacations/mine',
-            {},
-            token
-        )
-
-        setVacationRequests(data)
-    }
-
-    useEffect(() => {
-        loadVacationRequests().catch(() => undefined)
-    }, [token])
 
     const register = async (
         path: string,
@@ -150,47 +148,12 @@ export function EmployeePage({
                     requests={vacationRequests}
                 />
 
-                <article className="dashboard-card">
-
-                    <div className="dashboard-card-title">
-
-                        <div>
-                            <p className="eyebrow">
-                                SOLICITUDES
-                            </p>
-
-                            <h2>
-                                Solicitudes Pendientes
-                            </h2>
-                        </div>
-
-                        <span className="dashboard-card-icon">
-                            ▣
-                        </span>
-
-                    </div>
-
-                    <div className="vacation-summary-placeholder">
-
-                        <strong>
-                            Revisa tus solicitudes
-                        </strong>
-
-                        <p>
-                            Aquí aparecerán tus solicitudes
-                            pendientes de aprobación.
-                        </p>
-
-                        <button
-                            type="button"
-                            className="secondary"
-                        >
-                            Ver solicitudes
-                        </button>
-
-                    </div>
-
-                </article>
+                <PendingRequestsCard
+                    requests={vacationRequests}
+                    onViewRequests={() =>
+                        onNavigate('vacations')
+                    }
+                />
 
             </section>
 
@@ -206,7 +169,7 @@ export function EmployeePage({
                 <RecordList records={records} />
             </section>
 
-            <VacationSection token={token}/>
+            <VacationSection token={token} requests={vacationRequests} onRequestsChange={onRequestsChange}/>
         </>
     )
 }

@@ -788,6 +788,160 @@ input {
   font-size: 10px;
 }
 
+/*3er tarjeta */
+.pending-requests-card {
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.pending-requests-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd8e8;
+  box-shadow: 0 8px 22px rgba(25, 48, 75, 0.08);
+}
+
+.pending-request-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pending-request-main strong {
+  font-size: 34px;
+  line-height: 1;
+  color: #172033;
+}
+
+.pending-request-main span {
+  font-size: 10px;
+  color: #65718a;
+}
+
+.pending-request-preview {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: #fff8e6;
+}
+
+.pending-request-preview span {
+  font-size: 9px;
+  color: #8a6a20;
+}
+
+.pending-request-preview strong {
+  font-size: 11px;
+  color: #5d4b20;
+}
+
+.pending-request-preview small {
+  font-size: 9px;
+  color: #8a6a20;
+}
+
+.pending-request-empty {
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: #f5f8fb;
+  color: #65718a;
+  font-size: 10px;
+}
+
+.dashboard-card-link {
+  margin-top: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2463d4;
+}
+
+/*VacationsPage*/
+.page-content {
+  display: grid;
+  gap: 18px;
+}
+
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.page-heading h2 {
+  margin: 4px 0 5px;
+  font-size: 24px;
+  color: #172033;
+}
+
+.page-heading .muted {
+  margin: 0;
+  font-size: 12px;
+}
+
+.vacation-overview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.overview-card {
+  background: #fff;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  padding: 17px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(25, 48, 75, 0.04);
+}
+
+.overview-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.overview-icon.pending {
+  background: #fff5d9;
+  color: #9a741c;
+}
+
+.overview-icon.approved {
+  background: #e7f5eb;
+  color: #26733c;
+}
+
+.overview-icon.rejected {
+  background: #fff0ed;
+  color: #b94a38;
+}
+
+.overview-card div {
+  display: grid;
+  gap: 2px;
+}
+
+.overview-card strong {
+  font-size: 22px;
+  line-height: 1;
+  color: #172033;
+}
+
+.overview-card span {
+  font-size: 10px;
+  color: #65718a;
+}
+
+
 /* MOBILE */
 
 @media (max-width: 520px) {
@@ -875,6 +1029,10 @@ input {
   }
 
   .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vacation-overview {
     grid-template-columns: 1fr;
   }
 

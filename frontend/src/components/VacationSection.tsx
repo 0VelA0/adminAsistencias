@@ -4,11 +4,13 @@ import type { VacationRequest } from '../lib/types'
 
 export function VacationSection({
     token,
+    requests,
+    onRequestsChange
 }: {
     token: string
+    requests: VacationRequest []
+    onRequestsChange: () => Promise<void>
 }) {
-    const [requests, setRequests] =
-        useState<VacationRequest[]>([])
 
     const [startDate, setStartDate] =
         useState('')
@@ -25,23 +27,6 @@ export function VacationSection({
     const [working, setWorking] =
         useState(false)
 
-    const loadRequests = async () => {
-        const data = await api<VacationRequest[]>(
-            '/vacations/mine',
-            {},
-            token
-        )
-
-        setRequests(data)
-    }
-
-    useEffect(() => {
-        loadRequests().catch(() => {
-            setMessage(
-                'No se pudieron cargar tus solicitudes.'
-            )
-        })
-    }, [token])
 
     const submitRequest = async (
         event: React.FormEvent
@@ -78,7 +63,7 @@ export function VacationSection({
             setEndDate('')
             setReason('')
 
-            await loadRequests()
+            await onRequestsChange()
 
             setMessage(
                 'Solicitud de vacaciones enviada correctamente.'
@@ -109,7 +94,7 @@ export function VacationSection({
                 token
             )
 
-            await loadRequests()
+            await onRequestsChange()
 
             setMessage(
                 'Solicitud cancelada correctamente.'
@@ -128,12 +113,21 @@ export function VacationSection({
     return (
         <section>
             <div className="section-title">
-                <h2>
-                    Solicitar vacaciones
-                </h2>
+                <div>
+                    <p className="eyebrow">
+                        NUEVA SOLICITUD
+                    </p>
+
+                    <h2>
+                        Solicitar vacaciones
+                    </h2>
+                </div>
 
                 <span>
-                    {requests.length} solicitudes
+                    {requests.length}{' '}
+                    {requests.length === 1
+                        ? 'solicitud'
+                        : 'solicitudes'}
                 </span>
             </div>
 
