@@ -13,6 +13,7 @@ import { AppHeader } from './components/AppHeader'
 import { LoginPage } from './pages/LoginPage'
 import { EmployeePage } from './pages/EmployeePage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AppSidebar } from './components/AppSidebar'
 
 import './styles.css'
 
@@ -36,6 +37,9 @@ function App() {
     const [adminView, setAdminView] =
         useState(false)
 
+    const [activePage, setActivePage] = useState<
+        'dashboard' | 'attendance' | 'vacations' | 'history' | 'settings'
+        >('dashboard')
 
     const load = async (
         activeToken = token
@@ -122,42 +126,50 @@ function App() {
 
 
     return (
-        <main>
-            <AppHeader
+        <div className="app-layout">
+            <AppSidebar
                 user={user}
-                adminView={adminView}
-                onToggleAdmin={() =>
-                    setAdminView(
-                        !adminView
-                    )
-                }
+                activePage={activePage}
+                onPageChange={setActivePage}
                 onLogout={logout}
             />
 
-            {adminView &&
-            user.role === 'admin' ? (
-                <AdminDashboardPage
-                    token={token}
-                />
-            ) : (
-                <EmployeePage
-                    token={token}
-                    records={records}
-                    today={today}
-                    onRecord={record =>
-                        setRecords(
-                            old => [
-                                record,
-                                ...old,
-                            ]
-                        )
-                    }
-                    onTodayChange={
-                        setToday
+            <main className="app-main">
+
+                <AppHeader
+                    user={user}
+                    adminView={adminView}
+                    onToggleAdmin={() =>
+                        setAdminView(value => !value)
                     }
                 />
-            )}
-        </main>
+
+                {adminView &&
+                user.role === 'admin' ? (
+                    <AdminDashboardPage
+                        token={token}
+                    />
+                ) : (
+                    <EmployeePage
+                        token={token}
+                        records={records}
+                        today={today}
+                        onRecord={record =>
+                            setRecords(
+                                old => [
+                                    record,
+                                    ...old,
+                                ]
+                            )
+                        }
+                        onTodayChange={
+                            setToday
+                        }
+                    />
+                )}
+            </main>
+        </div>
+
     )
 }
 

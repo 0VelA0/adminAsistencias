@@ -13,9 +13,9 @@ body {
 }
 
 main {
-  max-width: 760px;
-  margin: auto;
-  padding: 36px 22px;
+
+  margin: 0;
+
 }
 
 header {
@@ -339,6 +339,247 @@ input {
   font-size: 14px;
 }
 
+/* =========================
+   SIDEBAR
+   ========================= */
+
+.sidebar {
+  width: 230px;
+  min-height: 100vh;
+  background: #071526;
+  color: #fff;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 10px;
+  z-index: 20;
+}
+
+.sidebar-brand {
+  height: 82px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 14px;
+  margin-bottom: 18px;
+}
+
+.sidebar-brand strong {
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+.sidebar-brand span {
+  font-size: 11px;
+  opacity: .65;
+  letter-spacing: .08em;
+}
+
+.sidebar-nav {
+  display: grid;
+  gap: 5px;
+}
+
+.sidebar-nav button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  color: #cbd5e1;
+  border-radius: 9px;
+  padding: 11px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.sidebar-nav button:hover {
+  background: #12243a;
+  color: #fff;
+}
+
+.sidebar-nav button.active {
+  background: #24364d;
+  color: #fff;
+}
+
+.sidebar-nav button span {
+  width: 18px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 8px;
+  margin-bottom: 8px;
+}
+
+.sidebar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #dce7f4;
+  color: #19304b;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar-user div:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-user strong {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user span {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.sidebar-logout {
+  width: 100%;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 9px;
+  text-align: left;
+}
+
+.sidebar-logout:hover {
+  background: #12243a;
+}
+
+
+.app-layout {
+  min-height: 100vh;
+  background: #eef3f8;
+}
+
+.app-main {
+  margin-left: 230px;
+  min-height: 100vh;
+  padding: 24px 28px;
+}
+
+/* =========================
+   DASHBOARD HEADER
+   ========================= */
+
+.dashboard-header {
+  min-height: 82px;
+  background: #ffffff;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(25, 48, 75, 0.04);
+}
+
+.dashboard-welcome {
+  min-width: 0;
+}
+
+.dashboard-welcome .eyebrow {
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+
+.dashboard-welcome h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  color: #172033;
+}
+
+.dashboard-welcome .muted {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+
+.dashboard-header-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.dashboard-clock {
+  display: grid;
+  text-align: right;
+}
+
+.dashboard-clock strong {
+  font-size: 22px;
+  line-height: 1;
+  color: #172033;
+  font-weight: 500;
+}
+
+.dashboard-clock span {
+  margin-top: 5px;
+  color: #65718a;
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.dashboard-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 16px;
+  border-left: 1px solid #e5eaf3;
+}
+
+.dashboard-user > div:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.dashboard-user strong {
+  font-size: 12px;
+  color: #172033;
+}
+
+.dashboard-user span {
+  font-size: 10px;
+  color: #65718a;
+}
+
+.dashboard-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dce7f4;
+  color: #19304b;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
 
 /* MOBILE */
 
@@ -373,5 +614,56 @@ input {
 
   .vacation-dates {
     flex-wrap: wrap;
+  }
+
+  .sidebar {
+    width: 70px;
+    padding: 10px 7px;
+  }
+
+  .sidebar-brand strong,
+  .sidebar-brand span,
+  .sidebar-nav button:not(.active)::after,
+  .sidebar-nav button {
+    font-size: 0;
+  }
+
+  .sidebar-nav button span {
+    font-size: 18px;
+  }
+
+  .sidebar-user > div:last-child,
+  .sidebar-logout {
+    display: none;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+  }
+
+  .sidebar-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-main {
+    margin-left: 70px;
+    padding: 14px;
+  }
+
+  .dashboard-header {
+    align-items: flex-start;
+  }
+
+  .dashboard-header-right {
+    gap: 10px;
+  }
+
+  .dashboard-clock {
+    display: none;
+  }
+
+  .dashboard-user > div:last-child {
+    display: none;
   }
 }

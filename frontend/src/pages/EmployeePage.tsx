@@ -28,6 +28,7 @@ export function EmployeePage({
     const [message, setMessage] = useState('')
     const [working, setWorking] = useState(false)
 
+
     const register = async (
         path: string,
         body: Record<string, string> = {}

@@ -9,6 +9,15 @@ export function AdminDashboardPage({ token }: { token: string }) {
   const [qrImage, setQrImage] = useState('')
   const [vacationRequests, setVacationRequests] = useState<AdminVacationRequest[]>([])
 
+  const [vacationFilter, setVacationFilter] = useState<
+      'all' | 'pending' | 'approved' | 'rejected'>('all')
+
+  const statusLabels: Record<string, string> = {
+    approved: 'Aprobada',
+    rejected: 'Rechazada',
+    pending: 'Pendiente'
+  }
+
   const load = async () =>
     setRecords(
       await api<AdminRecord[]>(
@@ -86,6 +95,15 @@ export function AdminDashboardPage({ token }: { token: string }) {
       .filter((r) => r.kind === 'entry')
       .map((r) => r.user_email)
   ).size
+
+  const filteredVacationRequests =
+    vacationRequests.filter((request) =>{
+      if(vacationFilter === 'all') {
+        return true
+      }
+
+      return request.status === vacationFilter
+    })
 
   return (
     <section>
@@ -205,17 +223,69 @@ export function AdminDashboardPage({ token }: { token: string }) {
           </div>
 
           <span>
-            Solicitudes: {vacationRequests.length}
+            Solicitudes: {filteredVacationRequests.length}
           </span>
+
+          <div className="vacation-filters">
+
+            <button
+              type="button"
+              className={
+                vacationFilter === 'all'
+                  ? ''
+                  : 'secondary'
+              }
+              onClick={() => setVacationFilter('all')}
+            >
+              Todas ({vacationRequests.length})
+            </button>
+
+            <button
+              type="button"
+              className={
+                vacationFilter === 'pending'
+                  ? ''
+                  : 'secondary'
+              }
+              onClick={() => setVacationFilter('pending')}
+            >
+              Pendientes
+            </button>
+
+            <button
+              type="button"
+              className={
+                vacationFilter === 'approved'
+                  ? ''
+                  : 'secondary'
+              }
+              onClick={() => setVacationFilter('approved')}
+            >
+              Aprobadas
+            </button>
+
+            <button
+              type="button"
+              className={
+                vacationFilter === 'rejected'
+                  ? ''
+                  : 'secondary'
+              }
+              onClick={() => setVacationFilter('rejected')}
+            >
+              Rechazadas
+            </button>
+
+          </div>
 
         </div>
 
 
-        {vacationRequests.length === 0 ? (
+        {filteredVacationRequests.length === 0 ? (
 
           <div className="vacation-empty">
             <p>
-              No hay solicitudes de vacaciones pendientes.
+              No hay solicitudes de vacaciones.
             </p>
           </div>
 
@@ -223,7 +293,7 @@ export function AdminDashboardPage({ token }: { token: string }) {
 
           <div className="vacation-list">
 
-            {vacationRequests.map((request) => (
+            {filteredVacationRequests.map((request) => (
 
               <article
                 key={request.id}
@@ -277,7 +347,7 @@ export function AdminDashboardPage({ token }: { token: string }) {
                     Estado:
                   </strong>{' '}
 
-                  {request.status || 'No tiene estado asignado'}
+                  {request.status ? (statusLabels[request.status.toLowerCase()] || request.status) : 'No tiene estado asignado'}
                 </p>
 
                 {request.status === 'pending' && (
