@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { getLocation } from '../lib/location'
 import type {
     AttendanceRecord,
     AttendanceToday,
+    VacationRequest
 } from '../lib/types'
 import { RecordList } from '../components/RecordList'
 import { VacationSection } from '../components/VacationSection'
+import { AttendanceCard } from '../components/AttendanceCard'
+import { VacationSummaryCard } from '../components/VacationSummaryCard'
 
 export function EmployeePage({
     token,
@@ -28,6 +31,22 @@ export function EmployeePage({
     const [message, setMessage] = useState('')
     const [working, setWorking] = useState(false)
 
+    const [vacationRequests, setVacationRequests] =
+        useState<VacationRequest[]>([])
+
+    const loadVacationRequests = async () => {
+        const data = await api<VacationRequest[]>(
+            '/vacations/mine',
+            {},
+            token
+        )
+
+        setVacationRequests(data)
+    }
+
+    useEffect(() => {
+        loadVacationRequests().catch(() => undefined)
+    }, [token])
 
     const register = async (
         path: string,
@@ -113,126 +132,66 @@ export function EmployeePage({
 
     return (
         <>
-            <section className="hero">
-                <p>
-                    {station
-                        ? 'Estación: recepción'
-                        : `Hoy, ${new Intl.DateTimeFormat(
-                              'es-MX',
-                              {
-                                  dateStyle: 'full',
-                              }
-                          ).format(new Date())}`}
-                </p>
+            <section className="dashboard-grid">
 
-                <h2>
-                    {station
-                        ? 'Registrar asistencia'
-                        : '¿Qué deseas registrar?'}
-                </h2>
+                <AttendanceCard
+                    today={today}
+                    working={working}
+                    isStation={Boolean(station)}
+                    onRegisterEntry={() =>
+                        register('/attendance/entry')
+                    }
+                    onRegisterExit={() =>
+                        register('/attendance/exit')
+                    }
+                />
 
-                {today.is_on_vacation ? (
-                    <>
-                        <p className="notice">
-                            🏖️ Tienes vacaciones aprobadas
-                            para hoy.
-                        </p>
+                <VacationSummaryCard
+                    requests={vacationRequests}
+                />
 
-                        <p className="muted">
-                            No puedes registrar asistencia
-                            durante un periodo de vacaciones
-                            aprobado.
-                        </p>
-                    </>
-                ) : (
-                    <p className="muted">
-                        {station
-                            ? 'Confirma el registro. La hora la toma el servidor y se valida tu ubicación.'
-                            : 'Puedes registrar usando tu ubicación desde la oficina.'}
-                    </p>
-                )}
+                <article className="dashboard-card">
 
-                {!station && !today.is_on_vacation && (
-                    <div className="actions">
-                        <button
-                            onClick={() =>
-                                register(
-                                    '/attendance/entry'
-                                )
-                            }
-                            disabled={!canRegisterEntry}
-                        >
-                            {working
-                                ? 'Registrando…'
-                                : 'Registrar entrada'}
-                        </button>
+                    <div className="dashboard-card-title">
 
-                        <button
-                            className="secondary"
-                            onClick={() =>
-                                register(
-                                    '/attendance/exit'
-                                )
-                            }
-                            disabled={!canRegisterExit}
-                        >
-                            {working
-                                ? 'Registrando…'
-                                : 'Registrar salida'}
-                        </button>
-                    </div>
-                )}
+                        <div>
+                            <p className="eyebrow">
+                                SOLICITUDES
+                            </p>
 
-                {station &&
-                    !today.is_on_vacation && (
-                        <div className="actions">
-                            <button
-                                onClick={() =>
-                                    register(
-                                        '/qr-attendance',
-                                        {
-                                            station,
-                                        }
-                                    )
-                                }
-                                disabled={
-                                    working ||
-                                    (hasEntry && hasExit)
-                                }
-                            >
-                                {working
-                                    ? 'Registrando…'
-                                    : hasEntry && hasExit
-                                      ? 'Jornada completada'
-                                      : hasEntry
-                                        ? 'Confirmar salida'
-                                        : 'Confirmar entrada'}
-                            </button>
+                            <h2>
+                                Solicitudes Pendientes
+                            </h2>
                         </div>
-                    )}
 
-                {!today.is_on_vacation &&
-                    hasEntry &&
-                    !hasExit && (
-                        <p className="notice">
-                            ✓ Entrada registrada. Ahora
-                            puedes registrar tu salida.
+                        <span className="dashboard-card-icon">
+                            ▣
+                        </span>
+
+                    </div>
+
+                    <div className="vacation-summary-placeholder">
+
+                        <strong>
+                            Revisa tus solicitudes
+                        </strong>
+
+                        <p>
+                            Aquí aparecerán tus solicitudes
+                            pendientes de aprobación.
                         </p>
-                    )}
 
-                {!today.is_on_vacation &&
-                    hasEntry &&
-                    hasExit && (
-                        <p className="notice">
-                            ✓ Jornada completada.
-                        </p>
-                    )}
+                        <button
+                            type="button"
+                            className="secondary"
+                        >
+                            Ver solicitudes
+                        </button>
 
-                {message && (
-                    <p className="notice">
-                        {message}
-                    </p>
-                )}
+                    </div>
+
+                </article>
+
             </section>
 
             <section>
