@@ -208,3 +208,53 @@ class QrSession(Base):
     created_by_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
     )
+
+class PermissionRequest(Base):
+    __tablename__ = "permission_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        index=True,
+    )
+
+    kind: Mapped[str] = mapped_column(String(10))  # paid | unpaid
+
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date] = mapped_column(Date, index=True)
+
+    reason: Mapped[str] = mapped_column(String(500))
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        index=True,
+    )
+
+    admin_note: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    reviewed_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

@@ -7,6 +7,7 @@ import type {
     VacationRequest
 } from '../lib/types'
 import { RecordList } from '../components/RecordList'
+import { RecordTable } from '../components/RecordTable'
 import { VacationSection } from '../components/VacationSection'
 import { AttendanceCard } from '../components/AttendanceCard'
 import { VacationSummaryCard } from '../components/VacationSummaryCard'
@@ -166,10 +167,9 @@ export function EmployeePage({
                     </span>
                 </div>
 
-                <RecordList records={records} />
+                <RecordTable records={records} />
             </section>
 
-            <VacationSection token={token} requests={vacationRequests} onRequestsChange={onRequestsChange}/>
         </>
     )
 }

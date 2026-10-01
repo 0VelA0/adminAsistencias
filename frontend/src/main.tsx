@@ -7,7 +7,8 @@ import type {
     AttendanceRecord,
     AttendanceToday,
     User,
-    VacationRequest
+    VacationRequest,
+    PermissionRequest
 } from './lib/types'
 
 import { AppHeader } from './components/AppHeader'
@@ -16,6 +17,7 @@ import { EmployeePage } from './pages/EmployeePage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AppSidebar } from './components/AppSidebar'
 import { VacationsPage } from './pages/VacationsPage'
+import { AttendancePage } from './pages/AttendancePage'
 
 import './styles.css'
 
@@ -88,6 +90,22 @@ function App() {
             setToday(null)
         }
     }
+
+    const [permissionRequests, setPermissionRequests] =
+    useState<PermissionRequest[]>([])
+
+    const loadPermissionRequests = async () => {
+        const data = await api<PermissionRequest[]>('/permissions/mine', {}, token)
+        setPermissionRequests(data)
+    }
+
+    useEffect(() => {
+        if (token) {
+            load()
+            loadVacationRequests().catch(() => undefined)
+            loadPermissionRequests().catch(() => undefined)
+        }
+    }, [token])
 
     const loadVacationRequests = async () => {
         const data = await api<VacationRequest[]>(
@@ -195,6 +213,18 @@ function App() {
                                 requests={vacationRequests}
                                 onRequestsChange={loadVacationRequests}/>
 
+                        )}
+                        {activePage === 'attendance' &&(
+                            <AttendancePage
+                                token={token}
+                                records={records}
+                                today={today}
+                                onRecord={record => setRecords(old => [record, ...old])}
+                                onTodayChange={setToday}
+                                vacationRequests={vacationRequests}
+                                permissionRequests={permissionRequests}
+                                onPermissionsChange={loadPermissionRequests}
+                            /> 
                         )}
                             
                     </>

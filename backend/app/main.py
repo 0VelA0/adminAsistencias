@@ -32,7 +32,11 @@ from .schemas import (
     VacationRequestCreate,
     VacationRequestOut,
     VacationReviewInput,
-    QrOut
+    QrOut,
+    PermissionRequestAdminOut,
+    PermissionRequestCreate,
+    PermissionRequestOut,
+    PermissionReviewInput
 )
 
 
@@ -841,6 +845,76 @@ def create_user(
 
 
 @app.post(
+    "/attendance/manual",
+    response_model=AttendanceOut,
+)
+def manual_attendance(
+    data: ManualAttendanceInput,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+
+    employee = db.get(
+        User,
+        data.user_id,
+    )
+
+    if not employee:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Empleado no encontrado.",
+        )
+
+    if employee.role == "admin":
+
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede registrar asistencia manual para un administrador.",
+        )
+
+    today = get_work_date()
+
+    if data.work_date > today:
+
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede registrar asistencia para una fecha futura.",
+        )
+
+    recorded_at = normalize_datetime(
+        data.recorded_at
+    )
+
+    # Si el administrador manda una fecha diferente
+    # a work_date, verificamos que realmente coincidan.
+    recorded_local_date = get_work_date(
+        recorded_at
+    )
+
+    if recorded_local_date != data.work_date:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La fecha de recorded_at no coincide "
+                "con work_date."
+            ),
+        )
+
+    return create_attendance_record(
+        user=employee,
+        db=db,
+        kind=data.kind,
+        source="admin",
+        recorded_at=recorded_at,
+        work_date=data.work_date,
+        status_override=data.status,
+        created_by_id=admin.id,
+        note=data.note,
+    )
+
+@app.post(
     "/attendance/{kind}",
     response_model=AttendanceOut,
 )
@@ -966,75 +1040,7 @@ def list_all_attendance(
     return result
 
 
-@app.post(
-    "/attendance/manual",
-    response_model=AttendanceOut,
-)
-def manual_attendance(
-    data: ManualAttendanceInput,
-    admin: User = Depends(admin_user),
-    db: Session = Depends(get_db),
-):
 
-    employee = db.get(
-        User,
-        data.user_id,
-    )
-
-    if not employee:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Empleado no encontrado.",
-        )
-
-    if employee.role == "admin":
-
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede registrar asistencia manual para un administrador.",
-        )
-
-    today = get_work_date()
-
-    if data.work_date > today:
-
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede registrar asistencia para una fecha futura.",
-        )
-
-    recorded_at = normalize_datetime(
-        data.recorded_at
-    )
-
-    # Si el administrador manda una fecha diferente
-    # a work_date, verificamos que realmente coincidan.
-    recorded_local_date = get_work_date(
-        recorded_at
-    )
-
-    if recorded_local_date != data.work_date:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "La fecha de recorded_at no coincide "
-                "con work_date."
-            ),
-        )
-
-    return create_attendance_record(
-        user=employee,
-        db=db,
-        kind=data.kind,
-        source="admin",
-        recorded_at=recorded_at,
-        work_date=data.work_date,
-        status_override=data.status,
-        created_by_id=admin.id,
-        note=data.note,
-    )
 
 
 # =========================================================
@@ -1529,6 +1535,242 @@ def create_admin_vacation(
     db.refresh(vacation)
 
     return vacation
+
+# =========================================================
+# PERMISOS
+# =========================================================
+
+
+def permission_to_out(
+    permission: PermissionRequest,
+    db: Session,
+) -> PermissionRequestOut:
+
+    out = PermissionRequestOut.model_validate(permission)
+
+    if permission.reviewed_by_id:
+        reviewer = db.get(User, permission.reviewed_by_id)
+        out.reviewed_by_name = reviewer.full_name if reviewer else None
+
+    return out
+
+
+@app.post(
+    "/permissions",
+    response_model=PermissionRequestOut,
+)
+def create_permission_request(
+    data: PermissionRequestCreate,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    if data.start_date < get_work_date():
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha inicial no puede estar en el pasado.",
+        )
+
+    overlapping_permission = db.scalar(
+        select(PermissionRequest)
+        .where(
+            PermissionRequest.user_id == user.id,
+            PermissionRequest.status.in_(["pending", "approved"]),
+            PermissionRequest.start_date <= data.end_date,
+            PermissionRequest.end_date >= data.start_date,
+        )
+        .limit(1)
+    )
+
+    if overlapping_permission:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Ya existe un permiso pendiente o aprobado "
+                "que se cruza con esas fechas."
+            ),
+        )
+
+    overlapping_vacation = db.scalar(
+        select(VacationRequest)
+        .where(
+            VacationRequest.user_id == user.id,
+            VacationRequest.status == "approved",
+            VacationRequest.start_date <= data.end_date,
+            VacationRequest.end_date >= data.start_date,
+        )
+        .limit(1)
+    )
+
+    if overlapping_vacation:
+        raise HTTPException(
+            status_code=409,
+            detail="Tienes vacaciones aprobadas en esas fechas.",
+        )
+
+    permission = PermissionRequest(
+        user_id=user.id,
+        kind=data.kind,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        reason=data.reason,
+        status="pending",
+    )
+
+    db.add(permission)
+    db.commit()
+    db.refresh(permission)
+
+    return permission_to_out(permission, db)
+
+
+@app.get(
+    "/permissions/mine",
+    response_model=list[PermissionRequestOut],
+)
+def my_permissions(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    permissions = db.scalars(
+        select(PermissionRequest)
+        .where(PermissionRequest.user_id == user.id)
+        .order_by(PermissionRequest.created_at.desc())
+    ).all()
+
+    return [permission_to_out(p, db) for p in permissions]
+
+
+@app.post(
+    "/permissions/{permission_id}/cancel",
+    response_model=PermissionRequestOut,
+)
+def cancel_permission(
+    permission_id: int,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    permission = db.get(PermissionRequest, permission_id)
+
+    if not permission:
+        raise HTTPException(
+            status_code=404,
+            detail="Solicitud de permiso no encontrada.",
+        )
+
+    if permission.user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="No puedes cancelar esta solicitud.",
+        )
+
+    if permission.status != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se pueden cancelar solicitudes pendientes.",
+        )
+
+    permission.status = "cancelled"
+    db.commit()
+    db.refresh(permission)
+
+    return permission_to_out(permission, db)
+
+
+@app.get(
+    "/permissions/requests",
+    response_model=list[PermissionRequestAdminOut],
+)
+def list_permission_requests(
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+
+    rows = db.execute(
+        select(
+            PermissionRequest,
+            User.full_name,
+            User.email,
+        )
+        .join(User, PermissionRequest.user_id == User.id)
+        .order_by(PermissionRequest.created_at.desc())
+    ).all()
+
+    result = []
+
+    for permission, user_name, user_email in rows:
+        base = permission_to_out(permission, db)
+
+        result.append(
+            PermissionRequestAdminOut(
+                **base.model_dump(),
+                user_name=user_name,
+                user_email=user_email,
+            )
+        )
+
+    return result
+
+
+def review_permission(
+    permission_id: int,
+    data: PermissionReviewInput,
+    admin: User,
+    db: Session,
+    new_status: str,
+) -> PermissionRequestOut:
+
+    permission = db.get(PermissionRequest, permission_id)
+
+    if not permission:
+        raise HTTPException(
+            status_code=404,
+            detail="Solicitud de permiso no encontrada.",
+        )
+
+    if permission.status != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se pueden resolver solicitudes pendientes.",
+        )
+
+    permission.status = new_status
+    permission.admin_note = data.admin_note
+    permission.reviewed_by_id = admin.id
+    permission.reviewed_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(permission)
+
+    return permission_to_out(permission, db)
+
+
+@app.post(
+    "/permissions/{permission_id}/approve",
+    response_model=PermissionRequestOut,
+)
+def approve_permission(
+    permission_id: int,
+    data: PermissionReviewInput,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    return review_permission(permission_id, data, admin, db, "approved")
+
+
+@app.post(
+    "/permissions/{permission_id}/reject",
+    response_model=PermissionRequestOut,
+)
+def reject_permission(
+    permission_id: int,
+    data: PermissionReviewInput,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    return review_permission(permission_id, data, admin, db, "rejected")
 
 
 # =========================================================

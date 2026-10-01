@@ -189,6 +189,58 @@ class VacationReviewInput(BaseModel):
     )
 
 
+class PermissionRequestCreate(BaseModel):
+    kind: str
+    start_date: date
+    end_date: date
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("kind")
+    @classmethod
+    def validate_kind(cls, value: str) -> str:
+        if value not in {"paid", "unpaid"}:
+            raise ValueError("kind debe ser paid o unpaid.")
+        return value
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_dates(cls, value: date, info) -> date:
+        start_date = info.data.get("start_date")
+
+        if start_date and value < start_date:
+            raise ValueError(
+                "La fecha final no puede ser anterior a la fecha inicial."
+            )
+
+        return value
+
+
+class PermissionRequestOut(BaseModel):
+    id: int
+    user_id: int
+    kind: str
+    start_date: date
+    end_date: date
+    reason: str
+    status: str
+    admin_note: str | None = None
+    reviewed_by_id: int | None = None
+    reviewed_by_name: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PermissionRequestAdminOut(PermissionRequestOut):
+    user_name: str
+    user_email: EmailStr
+
+
+class PermissionReviewInput(BaseModel):
+    admin_note: str | None = Field(default=None, max_length=500)
+
 class AdminVacationCreate(BaseModel):
     user_id: int
     start_date: date

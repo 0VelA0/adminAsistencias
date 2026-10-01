@@ -49,3 +49,17 @@ export type AdminVacationRequest = VacationRequest & {
     user_name: string
     user_email: string
 }
+
+export type PermissionRequest = {
+    id: number
+    user_id: number
+    kind: 'paid' | 'unpaid'
+    start_date: string
+    end_date: string
+    reason: string
+    status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+    admin_note: string | null
+    reviewed_by_name: string | null
+    reviewed_at: string | null
+    created_at: string
+}
