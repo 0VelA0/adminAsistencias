@@ -43,7 +43,10 @@ from .schemas import (
     ProfileOut,
     PasswordChange,
     NotificationSettings,
-    MissingTodayOut
+    MissingTodayOut,
+    UserCreatedOut,
+    UserUpdate,
+    PasswordResetOut,
 )
 
 
