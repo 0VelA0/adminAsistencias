@@ -48,3 +48,12 @@ export const STATUS_LABEL = {
     rejected: 'Rechazado',
     cancelled: 'Cancelado',
 } as const
+
+export const initials = (name: string) =>
+    name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(word => word[0])
+        .join('')
+        .toUpperCase()

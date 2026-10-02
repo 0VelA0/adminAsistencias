@@ -4,21 +4,15 @@ import { getLocation } from '../lib/location'
 import type {
     AttendanceRecord,
     AttendanceToday,
-    VacationRequest
+    VacationRequest,
+    User,
+    Page
 } from '../lib/types'
-import { RecordList } from '../components/RecordList'
 import { RecordTable } from '../components/RecordTable'
-import { VacationSection } from '../components/VacationSection'
 import { AttendanceCard } from '../components/AttendanceCard'
 import { VacationSummaryCard } from '../components/VacationSummaryCard'
 import { PendingRequestsCard } from '../components/PendingRequestsCard'
 
-type Page =
-    | 'dashboard'
-    | 'attendance'
-    | 'vacations'
-    | 'history'
-    | 'settings'
 
 export function EmployeePage({
     token,

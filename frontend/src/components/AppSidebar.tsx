@@ -1,11 +1,6 @@
-import type { User } from '../lib/types'
+import type { User, Page } from '../lib/types'
 
-type Page =
-  | 'dashboard'
-  | 'attendance'
-  | 'vacations'
-  | 'history'
-  | 'settings'
+
 
 export function AppSidebar({
   user,
@@ -109,6 +104,20 @@ export function AppSidebar({
           <span>⚙</span>
           Configuración
         </button>
+
+        {user.role === 'admin' && (
+            <>
+                <p className="sidebar-section">ADMINISTRACIÓN</p>
+
+                <button
+                className={activePage === 'users' ? 'active' : ''}
+                onClick={() => onPageChange('users')}
+                >
+                <span>☺</span>
+                Usuarios
+                </button>
+            </>
+        )}
 
       </nav>
 

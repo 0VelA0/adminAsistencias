@@ -1,390 +1,185 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { api } from '../lib/api'
-import type { AdminRecord, AdminVacationRequest } from '../lib/types'
-import { RecordList } from '../components/RecordList'
+import { ymd } from '../lib/format'
+import type { AdminRecord } from '../lib/types'
+import { RecordTable } from '../components/RecordTable'
+import { AdminRequestsPanel } from '../components/AdminRequestsPanel'
+import { MissingTodayCard } from '../components/MissingTodayCard'
+
+const PAGE = 40
 
 export function AdminDashboardPage({ token }: { token: string }) {
-  const [records, setRecords] = useState<AdminRecord[]>([])
-  const [qrImage, setQrImage] = useState('')
-  const [vacationRequests, setVacationRequests] = useState<AdminVacationRequest[]>([])
+    const [records, setRecords] = useState<AdminRecord[]>([])
+    const [qrImage, setQrImage] = useState('')
+    const [pending, setPending] = useState(0)
+    const [query, setQuery] = useState('')
+    const [visible, setVisible] = useState(PAGE)
+    const [refresh, setRefresh] = useState(0)
+    const [error, setError] = useState('')
 
-  const [vacationFilter, setVacationFilter] = useState<
-      'all' | 'pending' | 'approved' | 'rejected'>('all')
-
-  const statusLabels: Record<string, string> = {
-    approved: 'Aprobada',
-    rejected: 'Rechazada',
-    pending: 'Pendiente'
-  }
-
-  const load = async () =>
-    setRecords(
-      await api<AdminRecord[]>(
-        '/attendance',
-        {},
-        token
-      )
-    )
-
-  const loadVacationRequests = async () => {
-    setVacationRequests(
-      await api<AdminVacationRequest[]>(
-        '/vacations/requests',
-        {},
-        token
-      )
-    )
-  }
-
-  useEffect(() => {
-    load().catch(() => undefined)
-    loadVacationRequests().catch(() => undefined)
-  }, [])
-
-  const generateStationQr = async () =>
-    setQrImage(
-      await QRCode.toDataURL(
-        `${window.location.origin}/?station=recepcion`,
-        {
-          width: 240,
-          margin: 1,
+    const load = async () => {
+        try {
+            setRecords(await api<AdminRecord[]>('/attendance', {}, token))
+            setError('')
+        } catch (e) {
+            setError(
+                e instanceof Error ? e.message : 'No se pudo cargar el registro.'
+            )
         }
-      )
+    }
+
+    useEffect(() => {
+        load()
+    }, [token])
+
+    const reload = () => {
+        load()
+        setRefresh(n => n + 1) // remonta el panel de solicitudes
+    }
+
+    const generateStationQr = async () =>
+        setQrImage(
+            await QRCode.toDataURL(
+                `${window.location.origin}/?station=recepcion`,
+                { width: 240, margin: 1 }
+            )
+        )
+
+    /* ---------- Estadísticas de hoy ---------- */
+
+    const today = ymd(new Date())
+
+    const todayRecords = records.filter(
+        r => r.work_date.slice(0, 10) === today
     )
 
-  const approveVacation = async (id: number) => {
-    await api(
-      `/vacations/${id}/approve`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          admin_note: null,
-        }),
-      },
-      token
-    )
+    const todayEntries = todayRecords.filter(r => r.kind === 'entry')
 
-    await loadVacationRequests()
-  }
+    const entered = new Set(todayEntries.map(r => r.user_email)).size
 
-  const rejectVacation = async (id: number) => {
-    await api(
-      `/vacations/${id}/reject`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          admin_note: null,
-        }),
-      },
-      token
-    )
+    const late = new Set(
+        todayEntries.filter(r => r.status === 'late').map(r => r.user_email)
+    ).size
 
-    await loadVacationRequests()
-  }
+    /* ---------- Registro general ---------- */
 
-  const today = new Date().toDateString()
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return records
 
-  const todayRecords = records.filter(
-    (r) =>
-      new Date(r.recorded_at + 'Z').toDateString() === today
-  )
+        return records.filter(r =>
+            `${r.user_name} ${r.user_email}`.toLowerCase().includes(q)
+        )
+    }, [records, query])
 
-  const entered = new Set(
-    todayRecords
-      .filter((r) => r.kind === 'entry')
-      .map((r) => r.user_email)
-  ).size
+    useEffect(() => setVisible(PAGE), [query])
 
-  const filteredVacationRequests =
-    vacationRequests.filter((request) =>{
-      if(vacationFilter === 'all') {
-        return true
-      }
+    return (
+        <div className="page-content">
+            <div className="page-heading">
+                <div>
+                    <p className="eyebrow">ADMINISTRACIÓN</p>
+                    <h2>Panel administrativo</h2>
+                    <p className="muted">
+                        Resumen del día, solicitudes por aprobar y registros del equipo.
+                    </p>
+                </div>
 
-      return request.status === vacationFilter
-    })
+                <button type="button" className="secondary compact" onClick={reload}>
+                    Actualizar
+                </button>
+            </div>
 
-  return (
-    <section>
+            {error && <p className="error">{error}</p>}
 
-      {/* DASHBOARD */}
-      <div className="section-title">
+            <section className="admin-stats">
+                <article className="overview-card">
+                    <span className="overview-icon approved">✓</span>
+                    <div>
+                        <strong>{entered}</strong>
+                        <span>Registraron entrada hoy</span>
+                    </div>
+                </article>
 
-        <h2>
-          Dashboard de hoy
-        </h2>
+                <article className="overview-card">
+                    <span className="overview-icon pending">◷</span>
+                    <div>
+                        <strong>{late}</strong>
+                        <span>Retrasos hoy</span>
+                    </div>
+                </article>
 
-        <button
-          onClick={load}
-          className="secondary compact"
-        >
-          Actualizar
-        </button>
+                <article className="overview-card">
+                    <span className="overview-icon info">⇄</span>
+                    <div>
+                        <strong>{todayRecords.length}</strong>
+                        <span>Movimientos hoy</span>
+                    </div>
+                </article>
 
-      </div>
+                <article className="overview-card">
+                    <span className="overview-icon alert">!</span>
+                    <div>
+                        <strong>{pending}</strong>
+                        <span>Solicitudes por aprobar</span>
+                    </div>
+                </article>
+            </section>
 
-      <div className="stats">
+            <MissingTodayCard token={token} reloadKey={refresh} />
 
-        <article>
+            <AdminRequestsPanel
+                key={refresh}
+                token={token}
+                onPendingChange={setPending}
+            />
 
-          <strong>
-            {entered}
-          </strong>
+            <section className="dashboard-card history-card">
+                <div className="section-title history-title">
+                    <h2>Registro general</h2>
+                    <span>{filtered.length} registros</span>
+                </div>
 
-          <span>
-            registraron entrada
-          </span>
+                <div className="table-toolbar">
+                    <input
+                        type="search"
+                        placeholder="Buscar empleado…"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                    />
+                </div>
 
-        </article>
+                <RecordTable records={filtered.slice(0, visible)} admin />
 
-        <article>
+                {filtered.length > visible && (
+                    <button
+                        type="button"
+                        className="secondary compact show-more"
+                        onClick={() => setVisible(v => v + PAGE)}
+                    >
+                        Mostrar más ({filtered.length - visible} restantes)
+                    </button>
+                )}
+            </section>
 
-          <strong>
-            {todayRecords.length}
-          </strong>
-
-          <span>
-            movimientos hoy
-          </span>
-
-        </article>
-
-      </div>
-
-
-      {/* QR DE RECEPCIÓN */}
-      <section className="qr-panel">
-
-        <div>
-
-          <p className="eyebrow">
-            QR FIJO DE RECEPCIÓN
-          </p>
-
-          <h2>
-            Asistencia diaria
-          </h2>
-
-          <p className="muted">
-            Imprime este QR y colócalo en recepción.
-            No caduca: abre la estación de asistencia
-            y el sistema valida sesión y GPS.
-          </p>
-
-          <button onClick={generateStationQr}>
-            Mostrar QR para imprimir
-          </button>
-
-        </div>
-
-        {qrImage && (
-          <img
-            src={qrImage}
-            alt="QR fijo de recepción"
-          />
-        )}
-
-      </section>
-
-
-      {/* REGISTRO GENERAL */}
-      <div className="section-title">
-
-        <h2>
-          Registro general
-        </h2>
-
-        <span>
-          {records.length} registros
-        </span>
-
-      </div>
-
-      <RecordList
-        records={records}
-        admin
-      />
-
-
-      {/* VACACIONES */}
-      <section className="vacation-panel">
-
-        <div className="section-title">
-
-          <div>
-            <p className="eyebrow">
-              SOLICITUDES
-            </p>
-
-            <h2>
-              Vacaciones
-            </h2>
-          </div>
-
-          <span>
-            Solicitudes: {filteredVacationRequests.length}
-          </span>
-
-          <div className="vacation-filters">
-
-            <button
-              type="button"
-              className={
-                vacationFilter === 'all'
-                  ? ''
-                  : 'secondary'
-              }
-              onClick={() => setVacationFilter('all')}
-            >
-              Todas ({vacationRequests.length})
-            </button>
-
-            <button
-              type="button"
-              className={
-                vacationFilter === 'pending'
-                  ? ''
-                  : 'secondary'
-              }
-              onClick={() => setVacationFilter('pending')}
-            >
-              Pendientes
-            </button>
-
-            <button
-              type="button"
-              className={
-                vacationFilter === 'approved'
-                  ? ''
-                  : 'secondary'
-              }
-              onClick={() => setVacationFilter('approved')}
-            >
-              Aprobadas
-            </button>
-
-            <button
-              type="button"
-              className={
-                vacationFilter === 'rejected'
-                  ? ''
-                  : 'secondary'
-              }
-              onClick={() => setVacationFilter('rejected')}
-            >
-              Rechazadas
-            </button>
-
-          </div>
-
-        </div>
-
-
-        {filteredVacationRequests.length === 0 ? (
-
-          <div className="vacation-empty">
-            <p>
-              No hay solicitudes de vacaciones.
-            </p>
-          </div>
-
-        ) : (
-
-          <div className="vacation-list">
-
-            {filteredVacationRequests.map((request) => (
-
-              <article
-                key={request.id}
-                className="vacation-card"
-              >
-
-                <div className="vacation-card-header">
-
-                  <div>
-
-                    <h3>
-                      {request.user_name}
-                    </h3>
+            <section className="qr-panel">
+                <div>
+                    <p className="eyebrow">QR FIJO DE RECEPCIÓN</p>
+                    <h2>Asistencia diaria</h2>
 
                     <p className="muted">
-                      {request.user_email}
+                        Imprime este QR y colócalo en recepción. No caduca: abre la
+                        estación de asistencia y el sistema valida sesión y GPS.
                     </p>
 
-                  </div>
-
+                    <button type="button" onClick={generateStationQr}>
+                        Mostrar QR para imprimir
+                    </button>
                 </div>
 
-
-                <div className="vacation-dates">
-
-                  <strong>
-                    {request.start_date}
-                  </strong>
-
-                  <span>
-                    →
-                  </span>
-
-                  <strong>
-                    {request.end_date}
-                  </strong>
-
-                </div>
-
-
-                <p className="vacation-reason">
-                  <strong>
-                    Motivo:
-                  </strong>{' '}
-
-                  {request.reason || 'Sin motivo especificado'}
-                </p>
-
-                <p className="vacation-reason">
-                  <strong>
-                    Estado:
-                  </strong>{' '}
-
-                  {request.status ? (statusLabels[request.status.toLowerCase()] || request.status) : 'No tiene estado asignado'}
-                </p>
-
-                {request.status === 'pending' && (
-                  <div className="vacation-actions">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        approveVacation(request.id)
-                      }
-                    >
-                      Aprobar
-                    </button>
-
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() =>
-                        rejectVacation(request.id)
-                      }
-                    >
-                      Rechazar
-                    </button>
-
-                  </div>
-                )}
-
-              </article>
-
-            ))}
-
-          </div>
-
-        )}
-
-      </section>
-
-    </section>
-  )
-} 
+                {qrImage && <img src={qrImage} alt="QR fijo de recepción" />}
+            </section>
+        </div>
+    )
+}

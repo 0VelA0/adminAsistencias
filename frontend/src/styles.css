@@ -1512,6 +1512,152 @@ input {
   transform: translateX(18px);
 }
 
+/* ADMIN: SOLICITUDES */
+
+.filter-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.filter-tabs button {
+  background: #e9effb;
+  color: #1e4ba0;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.filter-tabs button.active {
+  background: #2463d4;
+  color: #fff;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ADMIN */
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.overview-icon.info {
+  background: #edf4ff;
+  color: #2463d4;
+}
+
+.overview-icon.alert {
+  background: #fdeee6;
+  color: #c2571a;
+}
+
+.show-more {
+  display: block;
+  margin: 14px auto 0;
+}
+
+/* ADMIN: SIN REGISTRAR */
+
+.person-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.person-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f5f8fb;
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.person-item .profile-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
+.person-item > div:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.person-item strong {
+  font-size: 12px;
+  color: #172033;
+}
+
+.person-item span {
+  font-size: 10px;
+  color: #65718a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.absent-summary {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 11px;
+  color: #65718a;
+}
+
+/* USUARIOS */
+
+.sidebar-section {
+  margin: 14px 12px 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: #6f829c;
+}
+
+.badge.admin {
+  background: #edf4ff;
+  color: #2463d4;
+}
+
+.badge.employee {
+  background: #eef1f6;
+  color: #65718a;
+}
+
+.credential-box {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  background: #f5f8fb;
+  border-radius: 10px;
+}
+
+.credential-box span {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #65718a;
+}
+
+.credential-box span:first-child {
+  margin-top: 0;
+}
+
+.credential-box code {
+  font-size: 14px;
+  color: #172033;
+  word-break: break-all;
+  user-select: all;
+}
+
 /* MOBILE */
 
 @media (max-width: 520px) {
@@ -1701,4 +1847,11 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .admin-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sidebar-section {
+    display: none;
+  }
 }

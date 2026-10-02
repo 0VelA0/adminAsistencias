@@ -88,3 +88,23 @@ export type NotificationSettings = {
     notify_company: boolean
     notify_weekly: boolean
 }
+
+export type MissingToday = {
+    work_date: string
+    is_workday: boolean
+    late_limit: string
+    limit_passed: boolean
+    missing: User[]
+    on_vacation: User[]
+    on_permission: User[]
+}
+
+export type Page =
+    | 'dashboard'
+    | 'attendance'
+    | 'vacations'
+    | 'history'
+    | 'settings'
+    | 'users'
+
+export type UserCreated = User & { temporary_password: string }

@@ -322,4 +322,33 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=128)
 
+class MissingTodayOut(BaseModel):
+    work_date: date
+    is_workday: bool
+    late_limit: str
+    limit_passed: bool
+    missing: list[UserOut]
+    on_vacation: list[UserOut]
+    on_permission: list[UserOut]
+
+class UserCreatedOut(UserOut):
+    temporary_password: str
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    role: str | None = None
+    is_active: bool | None = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"employee", "admin"}:
+            raise ValueError("El rol debe ser employee o admin.")
+        return value
+
+
+class PasswordResetOut(BaseModel):
+    temporary_password: str
+
 TokenOut.model_rebuild()

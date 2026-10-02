@@ -8,7 +8,8 @@ import type {
     AttendanceToday,
     User,
     VacationRequest,
-    PermissionRequest
+    PermissionRequest,
+    Page
 } from './lib/types'
 
 import { AppHeader } from './components/AppHeader'
@@ -20,6 +21,7 @@ import { VacationsPage } from './pages/VacationsPage'
 import { AttendancePage } from './pages/AttendancePage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UsersPage } from './pages/UsersPage'
 
 import './styles.css'
 
@@ -43,9 +45,7 @@ function App() {
     const [adminView, setAdminView] =
         useState(false)
 
-    const [activePage, setActivePage] = useState<
-        'dashboard' | 'attendance' | 'vacations' | 'history' | 'settings'
-        >('dashboard')
+    const [activePage, setActivePage] = useState<Page>('dashboard')
 
     const [vacationRequests, setVacationRequests] =
         useState<VacationRequest[]>([])
@@ -166,7 +166,10 @@ function App() {
             <AppSidebar
                 user={user}
                 activePage={activePage}
-                onPageChange={setActivePage}
+                onPageChange={page =>{
+                    setAdminView(false)
+                    setActivePage(page)
+                }}
                 onLogout={logout}
             />
 
@@ -241,6 +244,9 @@ function App() {
                                 user={user} 
                                 onUserChange={setUser} 
                             />
+                        )}
+                        {activePage === 'users' && user.role === 'admin' && (
+                            <UsersPage token={token} currentUser={user} />
                         )}
                             
                     </>

@@ -1048,7 +1048,104 @@ def list_all_attendance(
     return result
 
 
+@app.get(
+    "/attendance/missing-today",
+    response_model=MissingTodayOut,
+)
+def missing_today(
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
 
+    now_local = get_local_now()
+    today = now_local.date()
+
+    hours, minutes = map(
+        int,
+        settings.work_start_time.split(":")[:2],
+    )
+
+    late_limit = now_local.replace(
+        hour=hours,
+        minute=minutes,
+        second=0,
+        microsecond=0,
+    ) + timedelta(minutes=settings.late_grace_minutes)
+
+    base = {
+        "work_date": today,
+        "is_workday": today.weekday() < 5,
+        "late_limit": late_limit.strftime("%H:%M"),
+        "limit_passed": now_local > late_limit,
+    }
+
+    if not base["is_workday"]:
+        return MissingTodayOut(
+            **base,
+            missing=[],
+            on_vacation=[],
+            on_permission=[],
+        )
+
+    employees = db.scalars(
+        select(User)
+        .where(
+            User.role == "employee",
+            User.is_active.is_(True),
+        )
+        .order_by(User.full_name)
+    ).all()
+
+    entered_ids = set(
+        db.scalars(
+            select(AttendanceRecord.user_id).where(
+                AttendanceRecord.work_date == today,
+                AttendanceRecord.kind == "entry",
+            )
+        ).all()
+    )
+
+    vacation_ids = set(
+        db.scalars(
+            select(VacationRequest.user_id).where(
+                VacationRequest.status == "approved",
+                VacationRequest.start_date <= today,
+                VacationRequest.end_date >= today,
+            )
+        ).all()
+    )
+
+    permission_ids = set(
+        db.scalars(
+            select(PermissionRequest.user_id).where(
+                PermissionRequest.status == "approved",
+                PermissionRequest.start_date <= today,
+                PermissionRequest.end_date >= today,
+            )
+        ).all()
+    )
+
+    missing = []
+    on_vacation = []
+    on_permission = []
+
+    for employee in employees:
+        if employee.id in entered_ids:
+            continue
+
+        if employee.id in vacation_ids:
+            on_vacation.append(employee)
+        elif employee.id in permission_ids:
+            on_permission.append(employee)
+        else:
+            missing.append(employee)
+
+    return MissingTodayOut(
+        **base,
+        missing=missing,
+        on_vacation=on_vacation,
+        on_permission=on_permission,
+    )
 
 
 # =========================================================
@@ -2006,6 +2103,131 @@ def change_password(
     db.commit()
 
     return {"ok": True}
+
+
+def generate_temporary_password() -> str:
+    return secrets.token_urlsafe(9)  # 12 caracteres
+
+
+@app.post(
+    "/users",
+    response_model=UserCreatedOut,
+)
+def create_user(
+    data: UserCreate,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+
+    email = str(data.email).lower()
+
+    existing = db.scalar(
+        select(User).where(User.email == email)
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Ya existe un usuario con ese correo.",
+        )
+
+    temporary_password = generate_temporary_password()
+
+    user = User(
+        email=email,
+        full_name=data.full_name.strip(),
+        password_hash=password_hash.hash(temporary_password),
+        role=data.role,
+        is_active=True,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return UserCreatedOut(
+        **UserOut.model_validate(user).model_dump(),
+        temporary_password=temporary_password,
+    )
+
+
+@app.patch(
+    "/users/{user_id}",
+    response_model=UserOut,
+)
+def update_user(
+    user_id: int,
+    data: UserUpdate,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+
+    target = db.get(User, user_id)
+
+    if not target:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario no encontrado.",
+        )
+
+    if target.id == admin.id and (
+        data.is_active is False
+        or (data.role is not None and data.role != "admin")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No puedes desactivarte ni quitarte "
+                "el rol de administrador a ti mismo."
+            ),
+        )
+
+    if data.full_name is not None:
+        target.full_name = data.full_name.strip()
+
+    if data.role is not None:
+        target.role = data.role
+
+    if data.is_active is not None:
+        target.is_active = data.is_active
+
+    db.commit()
+    db.refresh(target)
+
+    return target
+
+
+@app.post(
+    "/users/{user_id}/reset-password",
+    response_model=PasswordResetOut,
+)
+def reset_user_password(
+    user_id: int,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+
+    target = db.get(User, user_id)
+
+    if not target:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario no encontrado.",
+        )
+
+    if target.id == admin.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Para cambiar tu propia contraseña usa Configuración.",
+        )
+
+    temporary_password = generate_temporary_password()
+    target.password_hash = password_hash.hash(temporary_password)
+
+    db.commit()
+
+    return PasswordResetOut(temporary_password=temporary_password)
+
 
 # =========================================================
 # FRONTEND ESTÁTICO
