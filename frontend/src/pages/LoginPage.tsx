@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { api } from '../lib/api'
 import type { User } from '../lib/types'
+import { Logo } from '../components/Logo'
 
 export function LoginPage({ onLogin }: { onLogin: (token: string, user: User) => void }) {
   const [email, setEmail] = useState('usuario@integraprofesional.com'), [password, setPassword] = useState('Tu contraseña'), [error, setError] = useState(''), [loading, setLoading] = useState(false)
@@ -11,6 +12,7 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, user: User) =>
       <p className="eyebrow">
         INTEGRADORA PROFESIONA
       </p>
+      <Logo className="login-logo" />
 
       <h1>
         Control de asistencia

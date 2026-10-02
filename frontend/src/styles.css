@@ -1672,6 +1672,137 @@ input {
   flex-shrink: 0;
 }
 
+/* AVATAR, LOGO Y ELEMENTOS CLICABLES */
+
+.sidebar-avatar,
+.dashboard-avatar,
+.profile-avatar,
+.person-avatar {
+  overflow: hidden;
+}
+
+.sidebar-avatar img,
+.dashboard-avatar img,
+.profile-avatar img,
+.person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 24px;
+}
+
+.person-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #dce7f4;
+  color: #19304b;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-cell > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.header-logo {
+  height: 44px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
+
+.login-logo {
+  display: block;
+  height: 56px;
+  width: auto;
+  margin: 0 auto 14px;
+}
+
+.sidebar-user.clickable,
+.dashboard-user.clickable,
+.overview-card.clickable {
+  cursor: pointer;
+}
+
+.sidebar-user.clickable {
+  border-radius: 9px;
+  transition: background .15s;
+}
+
+.sidebar-user.clickable:hover {
+  background: #12243a;
+}
+
+.dashboard-user.clickable:hover strong {
+  color: #2463d4;
+}
+
+.overview-card.clickable {
+  transition: transform .18s, box-shadow .18s;
+}
+
+.overview-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(25, 48, 75, 0.08);
+}
+
+.sidebar-mode {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  background: #12243a;
+  color: #cbd5e1;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sidebar-mode:hover {
+  background: #1b3250;
+  color: #fff;
+}
+
+.sidebar-mode span {
+  width: 18px;
+  text-align: center;
+  font-size: 16px;
+}
+
 /* MOBILE */
 
 @media (max-width: 520px) {
@@ -1866,6 +1997,26 @@ input {
   }
 
   .sidebar-section {
+    display: none;
+  }
+
+  .sidebar-brand strong,
+  .sidebar-brand span,
+  .sidebar-nav button:not(.active)::after,
+  .sidebar-nav button,
+  .sidebar-mode {
+    font-size: 0;
+  }
+
+  .sidebar-mode span {
+    font-size: 18px;
+  }
+
+  .header-logo {
+    height: 32px;
+  }
+
+  .dashboard-welcome {
     display: none;
   }
 }

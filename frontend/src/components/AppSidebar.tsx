@@ -1,160 +1,89 @@
-import type { User, Page } from '../lib/types'
+import type { Page, User } from '../lib/types'
+import { Avatar } from './Avatar'
 
+type Item = { page: Page; icon: string; label: string }
 
+const EMPLOYEE_ITEMS: Item[] = [
+  { page: 'dashboard', icon: '⌂', label: 'Dashboard' },
+  { page: 'attendance', icon: '◷', label: 'Asistencia' },
+  { page: 'vacations', icon: '▣', label: 'Vacaciones' },
+  { page: 'history', icon: '◴', label: 'Historial' },
+  { page: 'settings', icon: '⚙', label: 'Configuración' },
+]
+
+const ADMIN_ITEMS: Item[] = [
+  { page: 'admin-home', icon: '⌂', label: 'Resumen' },
+  { page: 'admin-requests', icon: '✎', label: 'Solicitudes' },
+  { page: 'admin-attendance', icon: '◷', label: 'Asistencia del equipo' },
+  { page: 'users', icon: '☺', label: 'Usuarios' },
+  { page: 'settings', icon: '⚙', label: 'Configuración' },
+]
 
 export function AppSidebar({
   user,
   activePage,
+  adminView,
   onPageChange,
+  onToggleAdmin,
   onLogout,
 }: {
   user: User
   activePage: Page
+  adminView: boolean
   onPageChange: (page: Page) => void
+  onToggleAdmin: () => void
   onLogout: () => void
 }) {
+  const items = adminView ? ADMIN_ITEMS : EMPLOYEE_ITEMS
+
   return (
     <aside className="sidebar">
-
-      {/* LOGO / EMPRESA */}
       <div className="sidebar-brand">
-        <strong>
-          INTEGRADORA
-        </strong>
-
-        <span>
-          PROFESIONAL
-        </span>
+        <strong>INTEGRADORA</strong>
+        <span>{adminView ? 'ADMINISTRACIÓN' : 'PROFESIONAL'}</span>
       </div>
 
-
-      {/* NAVEGACIÓN */}
       <nav className="sidebar-nav">
-
-        <button
-          className={
-            activePage === 'dashboard'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            onPageChange('dashboard')
-          }
-        >
-          <span>⌂</span>
-          Dashboard
-        </button>
-
-
-        <button
-          className={
-            activePage === 'attendance'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            onPageChange('attendance')
-          }
-        >
-          <span>◷</span>
-          Asistencia
-        </button>
-
-
-        <button
-          className={
-            activePage === 'vacations'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            onPageChange('vacations')
-          }
-        >
-          <span>▣</span>
-          Vacaciones
-        </button>
-
-
-        <button
-          className={
-            activePage === 'history'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            onPageChange('history')
-          }
-        >
-          <span>◴</span>
-          Historial
-        </button>
-
-
-        <button
-          className={
-            activePage === 'settings'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            onPageChange('settings')
-          }
-        >
-          <span>⚙</span>
-          Configuración
-        </button>
-
-        {user.role === 'admin' && (
-            <>
-                <p className="sidebar-section">ADMINISTRACIÓN</p>
-
-                <button
-                className={activePage === 'users' ? 'active' : ''}
-                onClick={() => onPageChange('users')}
-                >
-                <span>☺</span>
-                Usuarios
-                </button>
-            </>
-        )}
-
+        {items.map(item => (
+          <button
+            key={item.page}
+            className={activePage === item.page ? 'active' : ''}
+            onClick={() => onPageChange(item.page)}
+          >
+            <span>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
       </nav>
 
-
-      {/* USUARIO */}
       <div className="sidebar-bottom">
+        {user.role === 'admin' && (
+          <button className="sidebar-mode" onClick={onToggleAdmin}>
+            <span>⇄</span>
+            {adminView ? 'Vista de empleado' : 'Panel administrativo'}
+          </button>
+        )}
 
-        <div className="sidebar-user">
-
-          <div className="sidebar-avatar">
-            {user.full_name.charAt(0).toUpperCase()}
-          </div>
+        <div
+          className="sidebar-user clickable"
+          role="button"
+          tabIndex={0}
+          title="Ir a mi perfil"
+          onClick={() => onPageChange('settings')}
+          onKeyDown={e => e.key === 'Enter' && onPageChange('settings')}
+        >
+          <Avatar user={user} className="sidebar-avatar" />
 
           <div>
-            <strong>
-              {user.full_name}
-            </strong>
-
-            <span>
-              {user.role === 'admin'
-                ? 'Administrador'
-                : 'Empleado'}
-            </span>
+            <strong>{user.full_name}</strong>
+            <span>{user.role === 'admin' ? 'Administrador' : 'Empleado'}</span>
           </div>
-
         </div>
 
-
-        <button
-          className="sidebar-logout"
-          onClick={onLogout}
-        >
+        <button className="sidebar-logout" onClick={onLogout}>
           ↪ Cerrar sesión
         </button>
-
       </div>
-
     </aside>
   )
 }

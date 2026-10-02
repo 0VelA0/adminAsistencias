@@ -4,6 +4,8 @@ import type { User, UserCreated } from '../lib/types'
 import { UserModal } from '../components/UserModal'
 import { CredentialsModal } from '../components/CredentialModal'
 import { EditUserModal } from '../components/EditUserModal'
+import { Avatar } from '../components/Avatar'
+import { formatDay } from '../lib/format'
 
 type Credentials = {
     title: string
@@ -207,12 +209,20 @@ export function UsersPage({
                                         return (
                                             <tr key={user.id}>
                                                 <td data-label="Usuario">
-                                                    <strong>
-                                                        {user.full_name}
-                                                        {isMe && ' (tú)'}
-                                                    </strong>
-                                                    <small className="cell-sub">{user.email}</small>
+                                                    <div className="user-cell">
+                                                        <Avatar user={user} className="person-avatar" />
+
+                                                        <div>
+                                                            <strong>
+                                                                {user.full_name}
+                                                                {isMe && ' (tú)'}
+                                                            </strong>
+                                                            <small className="cell-sub">{user.email}</small>
+                                                        </div>
+                                                    </div>
                                                 </td>
+                                                
+                                                <td data-label="Ingreso">{user.hire_date ? formatDay(user.hire_date) : '—'}</td>
 
                                                 <td data-label="Rol">
                                                     <span className={`badge ${user.role}`}>

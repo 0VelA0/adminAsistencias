@@ -16,6 +16,7 @@ export function UserModal({
     const [role, setRole] = useState<'employee' | 'admin'>('employee')
     const [sending, setSending] = useState(false)
     const [error, setError] = useState('')
+    const [hireDate, setHireDate] = useState('')
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault()
@@ -31,6 +32,7 @@ export function UserModal({
                         email: email.trim(),
                         full_name: fullName.trim(),
                         role,
+                        hire_date: hireDate || null,
                     }),
                 },
                 token
@@ -80,6 +82,15 @@ export function UserModal({
                         <option value="employee">Empleado</option>
                         <option value="admin">Administrador</option>
                     </select>
+                </label>
+
+                <label>
+                    Fecha de ingreso
+                    <input
+                        type="date"
+                        value={hireDate}
+                        onChange={e => setHireDate(e.target.value)}
+                    />
                 </label>
 
                 <p className="muted">

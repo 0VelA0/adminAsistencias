@@ -43,6 +43,7 @@ class UserCreate(BaseModel):
         max_length=150,
     )
     role: str = "employee"
+    hire_date: date | None = None
 
     @field_validator("role")
     @classmethod
@@ -339,6 +340,7 @@ class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=150)
     role: str | None = None
     is_active: bool | None = None
+    hire_date: date | None = None
 
     @field_validator("role")
     @classmethod
@@ -362,4 +364,18 @@ class UserUpdate(BaseModel):
             raise ValueError("El rol debe ser employee o admin.")
         return value
 
+class UserOut(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    is_active: bool
+    hire_date: date | None = None
+    avatar: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class AvatarInput(BaseModel):
+    avatar: str = Field(max_length=400_000)
+    
 TokenOut.model_rebuild()

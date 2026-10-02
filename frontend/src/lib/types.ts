@@ -4,6 +4,8 @@ export type User = {
     full_name: string
     role: string
     is_active: boolean
+    hire_date: string | null
+    avatar: string | null
 }
 
 export type AttendanceRecord = {
@@ -106,5 +108,8 @@ export type Page =
     | 'history'
     | 'settings'
     | 'users'
+    | 'admin-home'
+    | 'admin-requests'
+    | 'admin-attendance'
 
 export type UserCreated = User & { temporary_password: string }

@@ -27,6 +27,7 @@ export function EditUserModal({
     const [visible, setVisible] = useState(false)
     const [sending, setSending] = useState(false)
     const [error, setError] = useState('')
+    const [hireDate, setHireDate] = useState(user.hire_date ?? '')
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault()
@@ -38,6 +39,8 @@ export function EditUserModal({
         }
 
         const body: Record<string, unknown> = {}
+
+        if (hireDate && hireDate !== (user.hire_date ?? '')) body.hire_date = hireDate
 
         if (fullName.trim() !== user.full_name) body.full_name = fullName.trim()
         if (role !== user.role) body.role = role

@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef,useState } from 'react'
 import { api } from '../lib/api'
 import type { Profile, User } from '../lib/types'
+import { fileToAvatar } from '../lib/image'
+import { Avatar } from './Avatar'
 
 const initials = (name: string) =>
     name
@@ -57,6 +59,55 @@ export function ProfileCard({
         }
     }
 
+    const fileRef = useRef<HTMLInputElement>(null)
+    const [avatarBusy, setAvatarBusy] = useState(false)
+
+    const changeAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file) return
+
+        setAvatarBusy(true)
+        setStatus(null)
+
+        try {
+            const avatar = await fileToAvatar(file)
+
+            const updated = await api<User>(
+                '/profile/avatar',
+                { method: 'PUT', body: JSON.stringify({ avatar }) },
+                token
+            )
+
+            onUserChange(updated)
+            setStatus({ text: 'Foto actualizada.', ok: true })
+        } catch (error) {
+            setStatus({
+                text: error instanceof Error ? error.message : 'No se pudo cambiar la foto.',
+                ok: false,
+            })
+        } finally {
+            setAvatarBusy(false)
+        }
+    }
+
+    const removeAvatar = async () => {
+        setAvatarBusy(true)
+        setStatus(null)
+
+        try {
+            onUserChange(await api<User>('/profile/avatar', { method: 'DELETE' }, token))
+            setStatus({ text: 'Foto eliminada.', ok: true })
+        } catch (error) {
+            setStatus({
+                text: error instanceof Error ? error.message : 'No se pudo eliminar la foto.',
+                ok: false,
+            })
+        } finally {
+            setAvatarBusy(false)
+        }
+    }
+
     return (
         <article className="dashboard-card">
             <div className="dashboard-card-title">
@@ -69,8 +120,37 @@ export function ProfileCard({
 
             <form className="settings-form" onSubmit={save}>
                 <div className="profile-head">
-                    <div className="profile-avatar">{initials(fullName) || '?'}</div>
-                    <p className="muted">Actualiza tus datos personales.</p>
+                    <Avatar user={user} className="profile-avatar" />
+
+                    <div className="avatar-actions">
+                        <button
+                            type="button"
+                            className="secondary compact"
+                            disabled={avatarBusy}
+                            onClick={() => fileRef.current?.click()}
+                        >
+                            {avatarBusy ? 'Procesando…' : 'Cambiar foto'}
+                        </button>
+
+                        {user.avatar && (
+                            <button
+                                type="button"
+                                className="secondary compact"
+                                disabled={avatarBusy}
+                                onClick={removeAvatar}
+                            >
+                                Quitar
+                            </button>
+                        )}
+
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept="image/*"
+                            hidden
+                            onChange={changeAvatar}
+                        />
+                    </div>
                 </div>
 
                 <label>

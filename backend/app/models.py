@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    Text
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +43,16 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
+    )
+    
+    hire_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    avatar: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
 

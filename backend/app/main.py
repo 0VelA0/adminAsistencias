@@ -10,8 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pwdlib import PasswordHash
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, inspect, text
 from sqlalchemy.orm import Session
+import base64
 
 from .config import settings
 from .database import Base, SessionLocal, engine
@@ -45,7 +46,8 @@ from .schemas import (
     NotificationSettings,
     MissingTodayOut,
     UserCreatedOut,
-    UserUpdate
+    UserUpdate,
+    AvatarInput
 )
 
 
@@ -65,7 +67,16 @@ password_hash = PasswordHash.recommended()
 
 JWT_ALGORITHM = "HS256"
 
-VACATION_DAYS_PER_YEAR = 12 
+VACATION_BASE_DAYS = 12
+VACATION_YEARLY_INCREMENT = 2
+
+AVATAR_FORMATS = {
+    "data:image/jpeg;base64,": b"\xff\xd8\xff",
+    "data:image/png;base64,": b"\x89PNG",
+    "data:image/webp;base64,": b"RIFF",
+}
+
+MAX_AVATAR_BYTES = 300_000
 
 
 # =========================================================
@@ -632,6 +643,15 @@ def create_attendance_record(
 
     return record
 
+def ensure_user_columns() -> None:
+    existing = {c["name"] for c in inspect(engine).get_columns("users")}
+
+    with engine.begin() as conn:
+        if "hire_date" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN hire_date DATE"))
+
+        if "avatar" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
 
 # =========================================================
 # STARTUP
@@ -644,6 +664,8 @@ def startup():
     Base.metadata.create_all(
         bind=engine
     )
+
+    ensure_user_columns()
 
     db = SessionLocal()
 
@@ -832,6 +854,8 @@ def create_user(
             status_code=409,
             detail="Ya existe un usuario con ese correo.",
         )
+
+    hire_date = data.hire_date 
 
     user = User(
         email=email,
@@ -1322,7 +1346,10 @@ def create_vacation_request(
             db, user.id, year, ["pending", "approved"]
         )
 
-        available = max(VACATION_DAYS_PER_YEAR - used, 0)
+        available = max(
+            vacation_entitlement(user.hire_date, year) - used,
+            0,
+        )
 
         if requested > available:
             raise HTTPException(
@@ -1441,23 +1468,32 @@ def vacation_days_in_year(
     )
 
 
+def vacation_entitlement(hire_date: date | None, year: int) -> int:
+    if hire_date is None:
+        return VACATION_BASE_DAYS
+
+    return VACATION_BASE_DAYS + VACATION_YEARLY_INCREMENT * max(
+        year - hire_date.year, 0
+    )
+
+
 def build_vacation_balance(
     db: Session,
-    user_id: int,
+    user: User,
     year: int,
 ) -> VacationBalanceOut:
 
-    used = vacation_days_in_year(db, user_id, year, ["approved"])
-    pending = vacation_days_in_year(db, user_id, year, ["pending"])
+    total = vacation_entitlement(user.hire_date, year)
+    used = vacation_days_in_year(db, user.id, year, ["approved"])
+    pending = vacation_days_in_year(db, user.id, year, ["pending"])
 
     return VacationBalanceOut(
         year=year,
-        total_days=VACATION_DAYS_PER_YEAR,
+        total_days=total,
         used_days=used,
         pending_days=pending,
-        available_days=max(VACATION_DAYS_PER_YEAR - used - pending, 0),
+        available_days=max(total - used - pending, 0),
     )
-
 
 def vacation_to_out(
     vacation: VacationRequest,
@@ -1481,7 +1517,7 @@ def my_vacation_balance(
     user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-    return build_vacation_balance(db, user.id, get_work_date().year)
+    return build_vacation_balance(db, user, get_work_date().year)
 
 # =========================================================
 # VACACIONES - ADMIN
@@ -2203,12 +2239,68 @@ def update_user(
     if data.password is not None:
         target.password_hash = password_hash.hash(data.password)
 
+    if data.hire_date is not None:
+        target.hire_date = data.hire_date
+
     db.commit()
     db.refresh(target)
 
     return target
 
+# AVATAR
 
+def validate_avatar(value: str) -> None:
+    for prefix, magic in AVATAR_FORMATS.items():
+        if not value.startswith(prefix):
+            continue
+
+        try:
+            raw = base64.b64decode(value[len(prefix):], validate=True)
+        except Exception:
+            break
+
+        if len(raw) <= MAX_AVATAR_BYTES and raw.startswith(magic):
+            return
+
+        break
+
+    raise HTTPException(
+        status_code=400,
+        detail="La imagen no es válida. Usa JPG, PNG o WebP de máximo 300 KB.",
+    )
+
+
+@app.put(
+    "/profile/avatar",
+    response_model=UserOut,
+)
+def set_avatar(
+    data: AvatarInput,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    validate_avatar(data.avatar)
+
+    user.avatar = data.avatar
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@app.delete(
+    "/profile/avatar",
+    response_model=UserOut,
+)
+def remove_avatar(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    user.avatar = None
+    db.commit()
+    db.refresh(user)
+
+    return user
 
 # =========================================================
 # FRONTEND ESTÁTICO

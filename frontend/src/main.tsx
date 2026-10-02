@@ -93,6 +93,22 @@ function App() {
         }
     }
 
+    const ADMIN_SECTIONS = {
+        'admin-home': 'home',
+        'admin-requests': 'requests',
+        'admin-attendance': 'attendance',
+    } as const
+
+    // dentro de App():
+    const adminSection =
+        ADMIN_SECTIONS[activePage as keyof typeof ADMIN_SECTIONS]
+
+    const toggleAdmin = () => {
+        const next = !adminView
+        setAdminView(next)
+        setActivePage(next ? 'admin-home' : 'dashboard')
+    }
+
     const [permissionRequests, setPermissionRequests] =
     useState<PermissionRequest[]>([])
 
@@ -163,13 +179,13 @@ function App() {
 
     return (
         <div className="app-layout">
+            tsx
             <AppSidebar
                 user={user}
                 activePage={activePage}
-                onPageChange={page =>{
-                    setAdminView(false)
-                    setActivePage(page)
-                }}
+                adminView={adminView}
+                onPageChange={setActivePage}
+                onToggleAdmin={toggleAdmin}
                 onLogout={logout}
             />
 
@@ -178,16 +194,28 @@ function App() {
                 <AppHeader
                     user={user}
                     adminView={adminView}
-                    onToggleAdmin={() =>
-                        setAdminView(value => !value)
-                    }
+                    onToggleAdmin={toggleAdmin}
+                    onProfileClick={() => setActivePage('settings')}
                 />
-
                 {adminView &&
                 user.role === 'admin' ? (
-                    <AdminDashboardPage
-                        token={token}
-                    />
+                        <>
+                            {adminSection && (
+                                <AdminDashboardPage
+                                    token={token}
+                                    section={adminSection}
+                                    onNavigate={setActivePage}
+                                />
+                            )}
+
+                            {activePage === 'users' && (
+                                <UsersPage token={token} currentUser={user} />
+                            )}
+
+                            {activePage === 'settings' && (
+                                <SettingsPage token={token} user={user} onUserChange={setUser} />
+                            )}
+                        </>
                 ) : (
                     <>
                         {activePage === 'dashboard' &&(

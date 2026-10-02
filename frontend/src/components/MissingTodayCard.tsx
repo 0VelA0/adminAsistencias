@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { initials } from '../lib/format'
 import type { MissingToday, User } from '../lib/types'
+import { Avatar } from './Avatar'
 
 const names = (users: User[]) => users.map(u => u.full_name).join(', ')
 
@@ -69,9 +70,7 @@ export function MissingTodayCard({
                         <div className="person-list">
                             {data.missing.map(person => (
                                 <div className="person-item" key={person.id}>
-                                    <div className="profile-avatar">
-                                        {initials(person.full_name)}
-                                    </div>
+                                    <Avatar user={person} className="profile-avatar" />
 
                                     <div>
                                         <strong>{person.full_name}</strong>
