@@ -1264,6 +1264,61 @@ input {
   gap: 10px;
 }
 
+/* Vacation */
+/* VACACIONES: SALDO */
+
+.balance-main {
+  text-align: center;
+  padding: 6px 0 4px;
+}
+
+.balance-main strong {
+  display: block;
+  font-size: 56px;
+  line-height: 1;
+  font-weight: 500;
+  color: #172033;
+}
+
+.balance-main span {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #65718a;
+}
+
+.balance-footer {
+  margin: 18px -18px -18px;
+  padding: 12px 18px;
+  background: #f5f8fb;
+  border-radius: 0 0 12px 12px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  font-size: 11px;
+  color: #65718a;
+}
+
+.dot.used { background: #e08a2e; }
+.dot.pending { background: #f3d36b; }
+.dot.free { background: #3fa66b; }
+
+.donut-legend {
+  flex-wrap: wrap;
+}
+
+.vac-days-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #65718a;
+}
+
+.vac-days-hint.over {
+  color: #b42318;
+  font-weight: 700;
+}
+
 /* MOBILE */
 
 @media (max-width: 520px) {
@@ -1439,6 +1494,14 @@ input {
   .detail-row td {
     display: block;
     text-align: left;
+  }
+
+  .modal-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions button {
+    flex: 1;
   }
 
 }

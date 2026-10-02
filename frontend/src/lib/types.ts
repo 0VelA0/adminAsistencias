@@ -43,6 +43,17 @@ export type VacationRequest = {
     reviewed_at: string | null
     created_at: string
     updated_at: string
+    days: number
+    reviewed_by_name: string | null
+    
+}
+
+export type VacationBalance = {
+    year: number
+    total_days: number
+    used_days: number
+    pending_days: number
+    available_days: number
 }
 
 export type AdminVacationRequest = VacationRequest & {

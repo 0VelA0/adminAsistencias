@@ -36,7 +36,9 @@ from .schemas import (
     PermissionRequestAdminOut,
     PermissionRequestCreate,
     PermissionRequestOut,
-    PermissionReviewInput
+    PermissionReviewInput,
+    VacationBalanceOut,
+    count_workdays
 )
 
 
@@ -55,6 +57,8 @@ LOCAL_TIMEZONE = ZoneInfo(settings.timezone)
 password_hash = PasswordHash.recommended()
 
 JWT_ALGORITHM = "HS256"
+
+VACATION_DAYS_PER_YEAR = 12 
 
 
 # =========================================================
@@ -1195,6 +1199,36 @@ def create_vacation_request(
             ),
         )
 
+    if count_workdays(data.start_date, data.end_date) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El periodo no incluye días laborables.",
+        )
+
+    for year in range(data.start_date.year, data.end_date.year + 1):
+        first = date(year, 1, 1)
+        last = date(year, 12, 31)
+
+        requested = count_workdays(
+            max(data.start_date, first),
+            min(data.end_date, last),
+        )
+
+        used = vacation_days_in_year(
+            db, user.id, year, ["pending", "approved"]
+        )
+
+        available = max(VACATION_DAYS_PER_YEAR - used, 0)
+
+        if requested > available:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"No tienes suficientes días en {year}: "
+                    f"solicitas {requested} y tienes {available} disponibles."
+                ),
+            )
+
     vacation = VacationRequest(
         user_id=user.id,
         start_date=data.start_date,
@@ -1220,15 +1254,13 @@ def my_vacations(
     db: Session = Depends(get_db),
 ):
 
-    return db.scalars(
+    vacations = db.scalars(
         select(VacationRequest)
-        .where(
-            VacationRequest.user_id == user.id
-        )
-        .order_by(
-            VacationRequest.start_date.desc()
-        )
+        .where(VacationRequest.user_id == user.id)
+        .order_by(VacationRequest.start_date.desc())
     ).all()
+
+    return [vacation_to_out(v, db) for v in vacations]
 
 
 @app.post(
@@ -1279,6 +1311,73 @@ def cancel_vacation(
 
     return vacation
 
+
+def vacation_days_in_year(
+    db: Session,
+    user_id: int,
+    year: int,
+    statuses: list[str],
+) -> int:
+
+    first = date(year, 1, 1)
+    last = date(year, 12, 31)
+
+    rows = db.scalars(
+        select(VacationRequest).where(
+            VacationRequest.user_id == user_id,
+            VacationRequest.status.in_(statuses),
+            VacationRequest.start_date <= last,
+            VacationRequest.end_date >= first,
+        )
+    ).all()
+
+    return sum(
+        count_workdays(max(r.start_date, first), min(r.end_date, last))
+        for r in rows
+    )
+
+
+def build_vacation_balance(
+    db: Session,
+    user_id: int,
+    year: int,
+) -> VacationBalanceOut:
+
+    used = vacation_days_in_year(db, user_id, year, ["approved"])
+    pending = vacation_days_in_year(db, user_id, year, ["pending"])
+
+    return VacationBalanceOut(
+        year=year,
+        total_days=VACATION_DAYS_PER_YEAR,
+        used_days=used,
+        pending_days=pending,
+        available_days=max(VACATION_DAYS_PER_YEAR - used - pending, 0),
+    )
+
+
+def vacation_to_out(
+    vacation: VacationRequest,
+    db: Session,
+) -> VacationRequestOut:
+
+    out = VacationRequestOut.model_validate(vacation)
+
+    if vacation.reviewed_by_id:
+        reviewer = db.get(User, vacation.reviewed_by_id)
+        out.reviewed_by_name = reviewer.full_name if reviewer else None
+
+    return out
+
+
+@app.get(
+    "/vacations/balance",
+    response_model=VacationBalanceOut,
+)
+def my_vacation_balance(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    return build_vacation_balance(db, user.id, get_work_date().year)
 
 # =========================================================
 # VACACIONES - ADMIN

@@ -1,6 +1,18 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
+
+def count_workdays(start: date, end: date) -> int:
+    """Días laborables (lunes a viernes) entre dos fechas, ambas incluidas."""
+
+    if end < start:
+        return 0
+
+    return sum(
+        1
+        for i in range((end - start).days + 1)
+        if (start + timedelta(days=i)).weekday() < 5
+    )
 
 
 class LoginInput(BaseModel):
@@ -171,11 +183,23 @@ class VacationRequestOut(BaseModel):
     reviewed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    reviewed_by_name: str | None = None
 
+    @computed_field
+    @property
+    def days(self) -> int:
+        return count_workdays(self.start_date, self.end_date)
+    
     model_config = ConfigDict(
         from_attributes=True,
     )
-
+    
+class VacationBalanceOut(BaseModel):
+    year: int
+    total_days: int
+    used_days: int
+    pending_days: int
+    available_days: int
 
 class VacationRequestAdminOut(VacationRequestOut):
     user_name: str
