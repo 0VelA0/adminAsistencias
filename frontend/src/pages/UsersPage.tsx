@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import type { User, UserCreated } from '../lib/types'
 import { UserModal } from '../components/UserModal'
 import { CredentialsModal } from '../components/CredentialModal'
+import { EditUserModal } from '../components/EditUserModal'
 
 type Credentials = {
     title: string
@@ -25,6 +26,7 @@ export function UsersPage({
     const [credentials, setCredentials] = useState<Credentials | null>(null)
     const [busyId, setBusyId] = useState<number | null>(null)
     const [error, setError] = useState('')
+    const [editing, setEditing] = useState<User | null>(null)
 
     const load = async () => {
         try {
@@ -60,34 +62,19 @@ export function UsersPage({
         }
     }
 
-    const resetPassword = async (user: User) => {
-        if (
-            !window.confirm(
-                `¿Restablecer la contraseña de ${user.full_name}? La actual dejará de funcionar.`
-            )
-        )
-            return
+    const handleSaved = async (updated: User, newPassword: string | null) => {
+        setEditing(null)
 
-        setBusyId(user.id)
-
-        try {
-            const result = await api<{ temporary_password: string }>(
-                `/users/${user.id}/reset-password`,
-                { method: 'POST' },
-                token
-            )
-
+        if (newPassword) {
             setCredentials({
-                title: 'Contraseña restablecida',
-                name: user.full_name,
-                email: user.email,
-                password: result.temporary_password,
+                title: 'Contraseña actualizada',
+                name: updated.full_name,
+                email: updated.email,
+                password: newPassword,
             })
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'No se pudo restablecer la contraseña.')
-        } finally {
-            setBusyId(null)
         }
+
+        await load()
     }
 
     const handleCreated = async (created: UserCreated) => {
@@ -252,20 +239,20 @@ export function UsersPage({
                                                         <div className="row-actions">
                                                             <button
                                                                 type="button"
-                                                                className="secondary compact"
+                                                                className="compact"
                                                                 disabled={busyId === user.id}
-                                                                onClick={() => toggleActive(user)}
+                                                                onClick={() => setEditing(user)}
                                                             >
-                                                                {user.is_active ? 'Desactivar' : 'Activar'}
+                                                                Editar
                                                             </button>
 
                                                             <button
                                                                 type="button"
                                                                 className="secondary compact"
                                                                 disabled={busyId === user.id}
-                                                                onClick={() => resetPassword(user)}
+                                                                onClick={() => toggleActive(user)}
                                                             >
-                                                                Restablecer contraseña
+                                                                {user.is_active ? 'Desactivar' : 'Activar'}
                                                             </button>
                                                         </div>
                                                     )}
@@ -290,6 +277,14 @@ export function UsersPage({
 
             {credentials && (
                 <CredentialsModal {...credentials} onClose={() => setCredentials(null)} />
+            )}
+            {editing && (
+                <EditUserModal
+                    token={token}
+                    user={editing}
+                    onClose={() => setEditing(null)}
+                    onSaved={handleSaved}
+                />
             )}
         </div>
     )

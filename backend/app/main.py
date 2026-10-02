@@ -45,8 +45,7 @@ from .schemas import (
     NotificationSettings,
     MissingTodayOut,
     UserCreatedOut,
-    UserUpdate,
-    PasswordResetOut,
+    UserUpdate
 )
 
 
@@ -2174,17 +2173,23 @@ def update_user(
             detail="Usuario no encontrado.",
         )
 
-    if target.id == admin.id and (
-        data.is_active is False
-        or (data.role is not None and data.role != "admin")
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No puedes desactivarte ni quitarte "
-                "el rol de administrador a ti mismo."
-            ),
-        )
+    if target.id == admin.id:
+        if data.is_active is False or (
+            data.role is not None and data.role != "admin"
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No puedes desactivarte ni quitarte "
+                    "el rol de administrador a ti mismo."
+                ),
+            )
+
+        if data.password is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Para cambiar tu propia contraseña usa Configuración.",
+            )
 
     if data.full_name is not None:
         target.full_name = data.full_name.strip()
@@ -2195,42 +2200,14 @@ def update_user(
     if data.is_active is not None:
         target.is_active = data.is_active
 
+    if data.password is not None:
+        target.password_hash = password_hash.hash(data.password)
+
     db.commit()
     db.refresh(target)
 
     return target
 
-
-@app.post(
-    "/users/{user_id}/reset-password",
-    response_model=PasswordResetOut,
-)
-def reset_user_password(
-    user_id: int,
-    admin: User = Depends(admin_user),
-    db: Session = Depends(get_db),
-):
-
-    target = db.get(User, user_id)
-
-    if not target:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado.",
-        )
-
-    if target.id == admin.id:
-        raise HTTPException(
-            status_code=400,
-            detail="Para cambiar tu propia contraseña usa Configuración.",
-        )
-
-    temporary_password = generate_temporary_password()
-    target.password_hash = password_hash.hash(temporary_password)
-
-    db.commit()
-
-    return PasswordResetOut(temporary_password=temporary_password)
 
 
 # =========================================================
