@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
