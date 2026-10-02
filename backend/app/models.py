@@ -258,3 +258,33 @@ class PermissionRequest(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+## UserSettings
+
+class UserPreferences(Base):
+    __tablename__ = "user_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        unique=True,
+        index=True,
+    )
+
+    phone: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    notify_attendance: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_vacations: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_permissions: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_company: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_weekly: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

@@ -296,5 +296,30 @@ class AdminVacationCreate(BaseModel):
 
         return value
 
+##UserSettings
+class ProfileOut(BaseModel):
+    full_name: str
+    email: EmailStr
+    phone: str | None = None
+
+
+class ProfileUpdate(BaseModel):
+    full_name: str = Field(min_length=2, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
+
+
+class NotificationSettings(BaseModel):
+    notify_attendance: bool
+    notify_vacations: bool
+    notify_permissions: bool
+    notify_company: bool
+    notify_weekly: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 TokenOut.model_rebuild()

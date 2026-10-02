@@ -74,3 +74,17 @@ export type PermissionRequest = {
     reviewed_at: string | null
     created_at: string
 }
+
+export type Profile = {
+    full_name: string
+    email: string
+    phone: string | null
+}
+
+export type NotificationSettings = {
+    notify_attendance: boolean
+    notify_vacations: boolean
+    notify_permissions: boolean
+    notify_company: boolean
+    notify_weekly: boolean
+}

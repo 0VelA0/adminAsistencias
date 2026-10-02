@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -38,7 +38,11 @@ from .schemas import (
     PermissionRequestOut,
     PermissionReviewInput,
     VacationBalanceOut,
-    count_workdays
+    count_workdays,
+    ProfileUpdate,
+    ProfileOut,
+    PasswordChange,
+    NotificationSettings
 )
 
 
@@ -1871,6 +1875,137 @@ def reject_permission(
 ):
     return review_permission(permission_id, data, admin, db, "rejected")
 
+
+# =========================================================
+# PERFIL, NOTIFICACIONES Y SEGURIDAD
+# =========================================================
+
+
+def get_or_create_preferences(
+    db: Session,
+    user_id: int,
+) -> UserPreferences:
+
+    prefs = db.scalar(
+        select(UserPreferences).where(
+            UserPreferences.user_id == user_id
+        )
+    )
+
+    if not prefs:
+        prefs = UserPreferences(user_id=user_id)
+        db.add(prefs)
+        db.commit()
+        db.refresh(prefs)
+
+    return prefs
+
+
+def profile_out(user: User, prefs: UserPreferences) -> ProfileOut:
+    return ProfileOut(
+        full_name=user.full_name,
+        email=user.email,
+        phone=prefs.phone,
+    )
+
+
+@app.get(
+    "/profile",
+    response_model=ProfileOut,
+)
+def get_profile(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    return profile_out(user, get_or_create_preferences(db, user.id))
+
+
+@app.put(
+    "/profile",
+    response_model=ProfileOut,
+)
+def update_profile(
+    data: ProfileUpdate,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    prefs = get_or_create_preferences(db, user.id)
+
+    user.full_name = data.full_name.strip()
+
+    phone = (data.phone or "").strip()
+    prefs.phone = phone or None
+
+    db.commit()
+    db.refresh(user)
+    db.refresh(prefs)
+
+    return profile_out(user, prefs)
+
+
+@app.get(
+    "/profile/notifications",
+    response_model=NotificationSettings,
+)
+def get_notifications(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    return get_or_create_preferences(db, user.id)
+
+
+@app.put(
+    "/profile/notifications",
+    response_model=NotificationSettings,
+)
+def update_notifications(
+    data: NotificationSettings,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    prefs = get_or_create_preferences(db, user.id)
+
+    prefs.notify_attendance = data.notify_attendance
+    prefs.notify_vacations = data.notify_vacations
+    prefs.notify_permissions = data.notify_permissions
+    prefs.notify_company = data.notify_company
+    prefs.notify_weekly = data.notify_weekly
+
+    db.commit()
+    db.refresh(prefs)
+
+    return prefs
+
+
+@app.post("/auth/change-password")
+def change_password(
+    data: PasswordChange,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    if not password_hash.verify(
+        data.current_password,
+        user.password_hash,
+    ):
+        # 400 y no 401, para no confundir con sesión expirada
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña actual es incorrecta.",
+        )
+
+    if data.new_password == data.current_password:
+        raise HTTPException(
+            status_code=400,
+            detail="La nueva contraseña debe ser diferente a la actual.",
+        )
+
+    user.password_hash = password_hash.hash(data.new_password)
+    db.commit()
+
+    return {"ok": True}
 
 # =========================================================
 # FRONTEND ESTÁTICO

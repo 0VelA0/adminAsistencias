@@ -19,6 +19,7 @@ import { AppSidebar } from './components/AppSidebar'
 import { VacationsPage } from './pages/VacationsPage'
 import { AttendancePage } from './pages/AttendancePage'
 import { HistoryPage } from './pages/HistoryPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 import './styles.css'
 
@@ -232,6 +233,13 @@ function App() {
                                 records={records}
                                 vacationRequests={vacationRequests}
                                 permissionRequests={permissionRequests}
+                            />
+                        )}
+                        {activePage === 'settings' &&(
+                            <SettingsPage 
+                                token={token} 
+                                user={user} 
+                                onUserChange={setUser} 
                             />
                         )}
                             
