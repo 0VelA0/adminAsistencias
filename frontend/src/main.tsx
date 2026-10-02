@@ -18,6 +18,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AppSidebar } from './components/AppSidebar'
 import { VacationsPage } from './pages/VacationsPage'
 import { AttendancePage } from './pages/AttendancePage'
+import { HistoryPage } from './pages/HistoryPage'
 
 import './styles.css'
 
@@ -225,6 +226,13 @@ function App() {
                                 permissionRequests={permissionRequests}
                                 onPermissionsChange={loadPermissionRequests}
                             /> 
+                        )}
+                        {activePage === 'history' && (
+                            <HistoryPage
+                                records={records}
+                                vacationRequests={vacationRequests}
+                                permissionRequests={permissionRequests}
+                            />
                         )}
                             
                     </>
