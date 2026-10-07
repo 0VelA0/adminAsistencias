@@ -8,11 +8,13 @@ export function AppHeader({
     adminView,
     onToggleAdmin,
     onProfileClick,
+    onLogout,
 }: {
     user: User
     adminView: boolean
     onToggleAdmin: () => void
     onProfileClick: () => void
+    onLogout: () => void
 }) {
     const [now, setNow] = useState(new Date())
 
@@ -62,14 +64,14 @@ export function AppHeader({
                 </div>
 
                 <div
-                    className="dashboard-user clickable"
+                    className="dashboard-user"
                     role="button"
                     tabIndex={0}
                     title="Ir a mi perfil"
                     onClick={onProfileClick}
                     onKeyDown={e => e.key === 'Enter' && onProfileClick()}
                 >
-                    <Avatar user={user} className="dashboard-avatar" />
+                    <Avatar user={user} size="sm" />
 
                     <div>
                         <strong>{user.full_name}</strong>
@@ -78,10 +80,21 @@ export function AppHeader({
                 </div>
 
                 {user.role === 'admin' && (
-                    <button className="secondary compact" onClick={onToggleAdmin}>
-                        {adminView ? 'Mi asistencia' : 'Panel administrativo'}
+                    <button className="secondary compact header-toggle" onClick={onToggleAdmin}>
+                        <span className="toggle-icon">⇄</span>
+                        <span className="toggle-text">
+                            {adminView ? 'Mi asistencia' : 'Panel administrativo'}
+                        </span>
                     </button>
                 )}
+
+                <button
+                    className="secondary compact header-logout"
+                    onClick={onLogout}
+                    aria-label="Cerrar sesión"
+                >
+                    ↪
+                </button>
             </div>
         </header>
     )

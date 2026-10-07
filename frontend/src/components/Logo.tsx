@@ -1,5 +1,14 @@
-import logo from '../assets/logo.png'
+import defaultLogo from '../assets/logo.png'
+import { useBranding } from '../lib/branding'
 
 export function Logo({ className }: { className?: string }) {
-    return <img src={logo} alt="Integradora Profesional" className={className} />
+    const { branding } = useBranding()
+
+    return (
+        <img
+            src={branding.logo ?? defaultLogo}
+            alt={branding.company_name}
+            className={className}
+        />
+    )
 }

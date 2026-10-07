@@ -120,7 +120,7 @@ export function ProfileCard({
 
             <form className="settings-form" onSubmit={save}>
                 <div className="profile-head">
-                    <Avatar user={user} className="profile-avatar" />
+                    <Avatar user={user}  />
 
                     <div className="avatar-actions">
                         <button

@@ -44,7 +44,7 @@ class User(Base):
         Boolean,
         default=True,
     )
-    
+
     hire_date: Mapped[date | None] = mapped_column(
         Date,
         nullable=True,
@@ -299,3 +299,18 @@ class UserPreferences(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+class CompanySettings(Base):
+    __tablename__ = "company_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    company_name: Mapped[str] = mapped_column(
+        String(120),
+        default="Integradora Profesional",
+    )
+
+    logo: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    primary_color: Mapped[str] = mapped_column(String(7), default="#2463d4")
+    sidebar_color: Mapped[str] = mapped_column(String(7), default="#071526")

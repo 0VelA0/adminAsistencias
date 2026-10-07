@@ -210,7 +210,7 @@ export function UsersPage({
                                             <tr key={user.id}>
                                                 <td data-label="Usuario">
                                                     <div className="user-cell">
-                                                        <Avatar user={user} className="person-avatar" />
+                                                        <Avatar user={user}  />
 
                                                         <div>
                                                             <strong>

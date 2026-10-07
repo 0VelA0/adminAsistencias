@@ -16,7 +16,7 @@ import base64
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -47,7 +47,9 @@ from .schemas import (
     MissingTodayOut,
     UserCreatedOut,
     UserUpdate,
-    AvatarInput
+    AvatarInput,
+    BrandingOut,
+    BrandingUpdate
 )
 
 
@@ -729,6 +731,7 @@ def startup():
 
                 db.add(employee)
 
+        get_branding(db)
         db.commit()
 
     finally:
@@ -2301,6 +2304,72 @@ def remove_avatar(
     db.refresh(user)
 
     return user
+
+
+def get_branding(db: Session) -> CompanySettings:
+    row = db.get(CompanySettings, 1)
+
+    if not row:
+        row = CompanySettings(id=1)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+    return row
+
+
+@app.get("/branding", response_model=BrandingOut)
+def read_branding(db: Session = Depends(get_db)):
+    # Público: el login necesita logo y colores antes de iniciar sesión
+    return get_branding(db)
+
+
+@app.put("/branding", response_model=BrandingOut)
+def update_branding(
+    data: BrandingUpdate,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    row = get_branding(db)
+
+    row.company_name = data.company_name.strip()
+    row.primary_color = data.primary_color.lower()
+    row.sidebar_color = data.sidebar_color.lower()
+
+    db.commit()
+    db.refresh(row)
+
+    return row
+
+
+@app.put("/branding/logo", response_model=BrandingOut)
+def set_logo(
+    data: AvatarInput,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    validate_avatar(data.avatar)  # mismas reglas que la foto de perfil
+
+    row = get_branding(db)
+    row.logo = data.avatar
+    db.commit()
+    db.refresh(row)
+
+    return row
+
+
+@app.delete("/branding/logo", response_model=BrandingOut)
+def remove_logo(
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    row = get_branding(db)
+    row.logo = None
+    db.commit()
+    db.refresh(row)
+
+    return row
+
 
 # =========================================================
 # FRONTEND ESTÁTICO

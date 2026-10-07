@@ -1,48 +1,80 @@
-import { FormEvent, useState } from 'react'
+import { useState } from 'react'
 import { api } from '../lib/api'
+import { useBranding } from '../lib/branding'
 import type { User } from '../lib/types'
 import { Logo } from '../components/Logo'
 
-export function LoginPage({ onLogin }: { onLogin: (token: string, user: User) => void }) {
-  const [email, setEmail] = useState('usuario@integraprofesional.com'), [password, setPassword] = useState('Tu contraseña'), [error, setError] = useState(''), [loading, setLoading] = useState(false)
-  const submit = async (event: FormEvent) => { event.preventDefault(); setLoading(true); setError(''); try { const result = await api<{ access_token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); onLogin(result.access_token, result.user) } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión') } finally { setLoading(false) } }
-  return <main className="login">
-    <section className="card">
+export function LoginPage({
+    onLogin,
+}: {
+    onLogin: (token: string, user: User) => void
+}) {
+    const { branding } = useBranding()
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false)
 
-      <p className="eyebrow">
-        INTEGRADORA PROFESIONA
-      </p>
-      <Logo className="login-logo" />
+    const submit = async (event: React.FormEvent) => {
+        event.preventDefault()
+        setLoading(true)
+        setError('')
 
-      <h1>
-        Control de asistencia
-      </h1>
-      
-      <p className="muted">
-        La sesión permanece en tu dispositivo para que no tengas que iniciar sesión cada día.
-      </p>
+        try {
+            const data = await api<{ access_token: string; user: User }>(
+                '/auth/login',
+                {
+                    method: 'POST',
+                    body: JSON.stringify({ email: email.trim(), password }),
+                },
+                ''
+            )
 
-      <form onSubmit={submit}>
+            onLogin(data.access_token, data.user)
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.')
+        } finally {
+            setLoading(false)
+        }
+    }
 
-        <label>
-          Correo
-          <input type="email" placeholder={email} onChange={e => setEmail(e.target.value)} required />
-        </label>
+    return (
+        <main className="login">
+            <form className="login-card" onSubmit={submit}>
+                <div className="login-brand">
+                    <Logo className="login-logo" />
+                    <h1>{branding.company_name}</h1>
+                    <p className="muted">Control de asistencia</p>
+                </div>
 
-        <label>
-          Contraseña
-          <input type="password" placeholder={password} onChange={e => setPassword(e.target.value)} required />
-        </label>
+                <label>
+                    Correo electrónico
+                    <input
+                        type="email"
+                        autoComplete="username"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                    />
+                </label>
 
-        {error && <p className="error">{error}</p>}
+                <label>
+                    Contraseña
+                    <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                    />
+                </label>
 
-        <button disabled={loading}>
-          {loading ? 'Ingresando…' : 'Iniciar sesión'}
-        </button>
+                {error && <p className="error">{error}</p>}
 
-      </form>
-
-    </section>
-    
-  </main>
+                <button type="submit" disabled={loading}>
+                    {loading ? 'Entrando…' : 'Iniciar sesión'}
+                </button>
+            </form>
+        </main>
+    )
 }

@@ -106,7 +106,7 @@ export function AttendanceCard({
                         </span>
                     </div>
 
-                    {!hasEntry && !isStation && (
+                    {!hasEntry &&  (
                         <button
                             type="button"
                             className="compact"
@@ -156,7 +156,7 @@ export function AttendanceCard({
 
                     {!hasExit &&
                         hasEntry &&
-                        !isStation && (
+                        (
                             <button
                                 type="button"
                                 className="secondary compact"
@@ -181,9 +181,11 @@ export function AttendanceCard({
                 </span>
 
                 <span>
-                    {hasEntry || hasExit
-                        ? 'Ubicación verificada'
-                        : 'Ubicación requerida para registrar'}
+                    {isStation
+                        ? "Registro por QR de recepcion"
+                        : hasEntry || hasExit
+                            ? 'Ubicación verificada'
+                            : 'Ubicación requerida para registrar'}
                 </span>
 
             </div>

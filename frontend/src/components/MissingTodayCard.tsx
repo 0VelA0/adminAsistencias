@@ -70,7 +70,7 @@ export function MissingTodayCard({
                         <div className="person-list">
                             {data.missing.map(person => (
                                 <div className="person-item" key={person.id}>
-                                    <Avatar user={person} className="profile-avatar" />
+                                    <Avatar user={person}  />
 
                                     <div>
                                         <strong>{person.full_name}</strong>

@@ -17,7 +17,7 @@ export function useAttendanceRegister({
     const [message, setMessage] = useState('')
     const [working, setWorking] = useState(false)
 
-    const register = async (path: string) => {
+    const register = async (path: string, extra: Record<string, string> = {}) => {
         setWorking(true)
         setMessage('Validando ubicación…')
 
@@ -26,7 +26,7 @@ export function useAttendanceRegister({
 
             const record = await api<AttendanceRecord>(
                 path,
-                { method: 'POST', body: JSON.stringify(location) },
+                { method: 'POST', body: JSON.stringify({...location, ...extra}) },
                 token
             )
 

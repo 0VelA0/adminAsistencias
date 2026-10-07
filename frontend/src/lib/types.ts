@@ -112,4 +112,11 @@ export type Page =
     | 'admin-requests'
     | 'admin-attendance'
 
+export type Branding = {
+    company_name: string
+    logo: string | null
+    primary_color: string
+    sidebar_color: string
+}
+
 export type UserCreated = User & { temporary_password: string }

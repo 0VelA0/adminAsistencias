@@ -132,10 +132,14 @@ export function EmployeePage({
                     working={working}
                     isStation={Boolean(station)}
                     onRegisterEntry={() =>
-                        register('/attendance/entry')
+                        station
+                            ? register('/qr-attendance', {station})
+                            : register('/attendance/entry')
                     }
                     onRegisterExit={() =>
-                        register('/attendance/exit')
+                        station
+                            ? register('/qr-attendance', {station})
+                            : register('/attendance/exit')
                     }
                 />
 

@@ -73,8 +73,14 @@ export function AttendancePage({
                     today={today}
                     working={working}
                     isStation={Boolean(station)}
-                    onRegisterEntry={() => register('/attendance/entry')}
-                    onRegisterExit={() => register('/attendance/exit')}
+                    onRegisterEntry={() => 
+                        station
+                            ? register('/qr-attendance', {station})
+                            : register('/attendance/entry')}
+                    onRegisterExit={() =>
+                        station
+                            ? register('/qr-attendance', {station})
+                            : register('/attendance/exit')}
                 />
 
                 <MonthlySummaryCard

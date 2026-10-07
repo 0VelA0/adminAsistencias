@@ -377,5 +377,23 @@ class UserOut(BaseModel):
 
 class AvatarInput(BaseModel):
     avatar: str = Field(max_length=400_000)
+
+
+HEX_COLOR = r"^#[0-9a-fA-F]{6}$"
+
+
+class BrandingOut(BaseModel):
+    company_name: str
+    logo: str | None = None
+    primary_color: str
+    sidebar_color: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BrandingUpdate(BaseModel):
+    company_name: str = Field(min_length=2, max_length=120)
+    primary_color: str = Field(pattern=HEX_COLOR)
+    sidebar_color: str = Field(pattern=HEX_COLOR)
     
 TokenOut.model_rebuild()

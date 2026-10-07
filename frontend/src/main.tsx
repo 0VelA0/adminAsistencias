@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrandingProvider } from './lib/branding'
 
 import { api } from './lib/api'
 
@@ -196,6 +197,7 @@ function App() {
                     adminView={adminView}
                     onToggleAdmin={toggleAdmin}
                     onProfileClick={() => setActivePage('settings')}
+                    onLogout={logout}
                 />
                 {adminView &&
                 user.role === 'admin' ? (
@@ -290,5 +292,8 @@ function App() {
 createRoot(
     document.getElementById('root')!
 ).render(
-    <App />
+    <BrandingProvider>
+        <App />
+    </BrandingProvider>
+
 )

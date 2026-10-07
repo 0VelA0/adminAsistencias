@@ -4,6 +4,7 @@ import type { NotificationSettings, Profile, User } from '../lib/types'
 import { ProfileCard } from '../components/ProfileCard'
 import { NotificationsCard } from '../components/NotificationsCard'
 import { SecurityCard } from '../components/SecurityCard'
+import { BrandingCard } from '../components/BrandingCard'
 
 export function SettingsPage({
     token,
@@ -60,6 +61,8 @@ export function SettingsPage({
                     <SecurityCard token={token} />
 
                     <NotificationsCard token={token} initial={notifications} />
+
+                    {user.role === 'admin' && <BrandingCard token={token} />}
                 </section>
             )}
         </div>
