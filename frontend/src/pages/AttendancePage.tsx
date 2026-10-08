@@ -55,15 +55,6 @@ export function AttendancePage({
                     <h2>Panel de Asistencia</h2>
                     <p className="muted">Consulta y registra tu jornada</p>
                 </div>
-
-                <div className="dashboard-clock">
-                    <strong>
-                        {now.toLocaleTimeString('es-MX', { hour12: false })}
-                    </strong>
-                    <span>
-                        {now.toLocaleDateString('es-MX', { dateStyle: 'full' })}
-                    </span>
-                </div>
             </div>
 
             {message && <p className="notice">{message}</p>}

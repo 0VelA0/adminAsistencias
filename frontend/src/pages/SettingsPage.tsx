@@ -5,6 +5,8 @@ import { ProfileCard } from '../components/ProfileCard'
 import { NotificationsCard } from '../components/NotificationsCard'
 import { SecurityCard } from '../components/SecurityCard'
 import { BrandingCard } from '../components/BrandingCard'
+import { useAsync } from '../lib/useAsync'
+import { StateView } from '../components/StatusBlocks'
 
 export function SettingsPage({
     token,
@@ -15,22 +17,13 @@ export function SettingsPage({
     user: User
     onUserChange: (user: User) => void
 }) {
-    const [profile, setProfile] = useState<Profile | null>(null)
-    const [notifications, setNotifications] = useState<NotificationSettings | null>(null)
-    const [error, setError] = useState('')
-
-    useEffect(() => {
-        Promise.all([
+    const state = useAsync(async () => {
+        const [profile, notifications] = await Promise.all([
             api<Profile>('/profile', {}, token),
             api<NotificationSettings>('/profile/notifications', {}, token),
         ])
-            .then(([p, n]) => {
-                setProfile(p)
-                setNotifications(n)
-            })
-            .catch(e =>
-                setError(e instanceof Error ? e.message : 'No se pudo cargar la configuración.')
-            )
+
+        return { profile, notifications }
     }, [token])
 
     return (
@@ -42,29 +35,20 @@ export function SettingsPage({
                     <p className="muted">Gestiona tu perfil, notificaciones y seguridad.</p>
                 </div>
 
-                <span className="page-date">
-                    {new Date().toLocaleDateString('es-MX', { dateStyle: 'full' })}
-                </span>
             </div>
 
-            {error && <p className="error">{error}</p>}
+            {/*error && <p className="error">{error}</p>*/}
 
-            {profile && notifications && (
-                <section className="settings-grid">
-                    <ProfileCard
-                        token={token}
-                        user={user}
-                        profile={profile}
-                        onUserChange={onUserChange}
-                    />
-
-                    <SecurityCard token={token} />
-
-                    <NotificationsCard token={token} initial={notifications} />
-
-                    {user.role === 'admin' && <BrandingCard token={token} />}
-                </section>
-            )}
+            <StateView state={state}>
+                {({ profile, notifications }) => (
+                    <section className="settings-grid">
+                        <ProfileCard token={token} user={user} profile={profile} onUserChange={onUserChange} />
+                        <SecurityCard token={token} />
+                        <NotificationsCard token={token} initial={notifications} />
+                        {user.role === 'admin' && <BrandingCard token={token} />}
+                    </section>
+                )}
+            </StateView>
         </div>
     )
 }

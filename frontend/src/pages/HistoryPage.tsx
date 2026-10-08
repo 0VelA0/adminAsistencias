@@ -57,10 +57,6 @@ export function HistoryPage({
                         Consulta todo tu historial de asistencia y solicitudes.
                     </p>
                 </div>
-
-                <span className="page-date">
-                    {new Date().toLocaleDateString('es-MX', { dateStyle: 'full' })}
-                </span>
             </div>
 
             <section className="dashboard-grid">

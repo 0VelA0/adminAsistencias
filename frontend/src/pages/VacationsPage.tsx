@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { VacationBalance, VacationRequest } from '../lib/types'
-import { LiveClock } from '../components/LiveClock'
 import { VacationBalanceCard } from '../components/VacationBalanceCard'
 import { VacationUsageCard } from '../components/VacationUsageCard'
 import { VacationRequestsCard } from '../components/VacationRequestCard'
@@ -40,8 +39,6 @@ export function VacationsPage({
                         Consulta tu saldo, solicita periodos y revisa el estado de tus solicitudes.
                     </p>
                 </div>
-
-                <LiveClock />
             </div>
 
             <section className="dashboard-grid">

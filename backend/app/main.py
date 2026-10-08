@@ -44,7 +44,9 @@ from .schemas import (
     ProfileOut,
     PasswordChange,
     NotificationSettings,
-    MissingTodayOut,
+    TodayAbsenceOut,
+    TodayOverviewOut,
+    TodayEntryOut,
     UserCreatedOut,
     UserUpdate,
     AvatarInput,
@@ -1079,16 +1081,17 @@ def list_all_attendance(
 
 
 @app.get(
-    "/attendance/missing-today",
-    response_model=MissingTodayOut,
+    "/attendance/today-overview",
+    response_model=TodayOverviewOut,
 )
-def missing_today(
+def today_overview(
     _: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ):
 
     now_local = get_local_now()
     today = now_local.date()
+    is_workday = today.weekday() < 5
 
     hours, minutes = map(
         int,
@@ -1102,21 +1105,6 @@ def missing_today(
         microsecond=0,
     ) + timedelta(minutes=settings.late_grace_minutes)
 
-    base = {
-        "work_date": today,
-        "is_workday": today.weekday() < 5,
-        "late_limit": late_limit.strftime("%H:%M"),
-        "limit_passed": now_local > late_limit,
-    }
-
-    if not base["is_workday"]:
-        return MissingTodayOut(
-            **base,
-            missing=[],
-            on_vacation=[],
-            on_permission=[],
-        )
-
     employees = db.scalars(
         select(User)
         .where(
@@ -1126,52 +1114,90 @@ def missing_today(
         .order_by(User.full_name)
     ).all()
 
-    entered_ids = set(
-        db.scalars(
-            select(AttendanceRecord.user_id).where(
-                AttendanceRecord.work_date == today,
-                AttendanceRecord.kind == "entry",
-            )
-        ).all()
-    )
+    attendance: dict[int, dict[str, AttendanceRecord]] = {}
 
-    vacation_ids = set(
-        db.scalars(
-            select(VacationRequest.user_id).where(
+    for record in db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.work_date == today
+        )
+    ).all():
+        attendance.setdefault(record.user_id, {})[record.kind] = record
+
+    vacations = {
+        v.user_id: v
+        for v in db.scalars(
+            select(VacationRequest).where(
                 VacationRequest.status == "approved",
                 VacationRequest.start_date <= today,
                 VacationRequest.end_date >= today,
             )
         ).all()
-    )
+    }
 
-    permission_ids = set(
-        db.scalars(
-            select(PermissionRequest.user_id).where(
+    permissions = {
+        p.user_id: p
+        for p in db.scalars(
+            select(PermissionRequest).where(
                 PermissionRequest.status == "approved",
                 PermissionRequest.start_date <= today,
                 PermissionRequest.end_date >= today,
             )
         ).all()
-    )
+    }
 
+    registered = []
     missing = []
     on_vacation = []
     on_permission = []
 
     for employee in employees:
-        if employee.id in entered_ids:
-            continue
+        user_out = UserOut.model_validate(employee)
+        records = attendance.get(employee.id, {})
+        entry = records.get("entry")
+        exit_record = records.get("exit")
 
-        if employee.id in vacation_ids:
-            on_vacation.append(employee)
-        elif employee.id in permission_ids:
-            on_permission.append(employee)
-        else:
-            missing.append(employee)
+        if entry:
+            registered.append(
+                TodayEntryOut(
+                    user=user_out,
+                    entry_at=entry.recorded_at,
+                    exit_at=exit_record.recorded_at if exit_record else None,
+                    status=entry.status,
+                )
+            )
 
-    return MissingTodayOut(
-        **base,
+        elif employee.id in vacations:
+            vacation = vacations[employee.id]
+            on_vacation.append(
+                TodayAbsenceOut(
+                    user=user_out,
+                    start_date=vacation.start_date,
+                    end_date=vacation.end_date,
+                )
+            )
+
+        elif employee.id in permissions:
+            permission = permissions[employee.id]
+            on_permission.append(
+                TodayAbsenceOut(
+                    user=user_out,
+                    start_date=permission.start_date,
+                    end_date=permission.end_date,
+                    kind=permission.kind,
+                )
+            )
+
+        elif is_workday:
+            missing.append(user_out)
+
+    registered.sort(key=lambda item: item.entry_at)
+
+    return TodayOverviewOut(
+        work_date=today,
+        is_workday=is_workday,
+        late_limit=late_limit.strftime("%H:%M"),
+        limit_passed=now_local > late_limit,
+        registered=registered,
         missing=missing,
         on_vacation=on_vacation,
         on_permission=on_permission,

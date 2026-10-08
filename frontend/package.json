@@ -3,7 +3,22 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc -b && vite build" },
-  "dependencies": { "@vitejs/plugin-react": "latest", "typescript": "latest", "vite": "latest", "react": "latest", "react-dom": "latest", "qrcode": "latest" },
-  "devDependencies": { "@types/react": "latest", "@types/react-dom": "latest", "@types/qrcode": "latest" }
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "jspdf": "^4.2.1",
+    "qrcode": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/qrcode": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
 }

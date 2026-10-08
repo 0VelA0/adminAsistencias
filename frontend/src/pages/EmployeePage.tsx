@@ -125,6 +125,13 @@ export function EmployeePage({
 
     return (
         <>
+            <div className="page-heading">
+                <div>
+                    <p className="eyebrow">DASHBOARD</p>
+                    <h2>Panel General</h2>
+                </div>
+            </div>
+            <br />
             <section className="dashboard-grid">
 
                 <AttendanceCard

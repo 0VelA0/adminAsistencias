@@ -323,14 +323,29 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=128)
 
-class MissingTodayOut(BaseModel):
+class TodayEntryOut(BaseModel):
+    user: UserOut
+    entry_at: datetime
+    exit_at: datetime | None = None
+    status: str
+
+
+class TodayAbsenceOut(BaseModel):
+    user: UserOut
+    start_date: date
+    end_date: date
+    kind: str | None = None  # paid | unpaid, solo en permisos
+
+
+class TodayOverviewOut(BaseModel):
     work_date: date
     is_workday: bool
     late_limit: str
     limit_passed: bool
+    registered: list[TodayEntryOut]
     missing: list[UserOut]
-    on_vacation: list[UserOut]
-    on_permission: list[UserOut]
+    on_vacation: list[TodayAbsenceOut]
+    on_permission: list[TodayAbsenceOut]
 
 class UserCreatedOut(UserOut):
     temporary_password: str

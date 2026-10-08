@@ -23,6 +23,9 @@ import { AttendancePage } from './pages/AttendancePage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
+import {ToastProvider} from './components/Toast'
+import { FullScreenStatus } from './components/StatusBlocks'
+import { useOnline } from './lib/useOnline'
 
 import './styles.css'
 
@@ -54,6 +57,8 @@ function App() {
     const load = async (
         activeToken = token
     ) => {
+        setLoadError('')
+
         try {
             const [
                 me,
@@ -83,14 +88,17 @@ function App() {
             setRecords(mine)
             setToday(attendanceToday)
 
-        } catch {
-            localStorage.removeItem(
-                'attendance_token'
-            )
+        } catch (error) {
+            const message = error instanceof Error ? error.message : ''
 
-            setToken('')
-            setUser(null)
-            setToday(null)
+                if (/token|desactivado/i.test(message)) {
+                    localStorage.removeItem('attendance_token')
+                    setToken('')
+                    setUser(null)
+                    setToday(null)
+                } else {
+                    setLoadError(message || 'No se pudo conectar con el servidor.')
+                }
         }
     }
 
@@ -118,6 +126,9 @@ function App() {
         setPermissionRequests(data)
     }
 
+    const [loadError, setLoadError] = useState('')
+    const online = useOnline()
+
     useEffect(() => {
         if (token) {
             load()
@@ -131,10 +142,10 @@ function App() {
             '/vacations/mine',
             {},
             token
-    )
+        )
 
-    setVacationRequests(data)
-}
+        setVacationRequests(data)
+    }
 
 
     useEffect(() => {
@@ -143,6 +154,14 @@ function App() {
             loadVacationRequests().catch(() => undefined)
         }
     }, [token])
+
+    useEffect(() => {
+        if (!loadError) return
+
+        const id = setTimeout(() => load(), 5000)
+        return () => clearTimeout(id)
+
+    }, [loadError])
 
 
     const logout = () => {
@@ -158,18 +177,11 @@ function App() {
     }
 
 
-    if (!token || !user || !today) {
+    if (!token) {
         return (
             <LoginPage
-                onLogin={(
-                    newToken,
-                    newUser
-                ) => {
-                    localStorage.setItem(
-                        'attendance_token',
-                        newToken
-                    )
-
+                onLogin={(newToken, newUser) => {
+                    localStorage.setItem('attendance_token', newToken)
                     setToken(newToken)
                     setUser(newUser)
                 }}
@@ -177,9 +189,20 @@ function App() {
         )
     }
 
+    if (!user || !today) {
+        return <FullScreenStatus error={loadError} onRetry={() => load()} />
+    }
+
 
     return (
         <div className="app-layout">
+
+            {!online && (
+                <div className="offline-banner" role="status">
+                    Sin conexión a internet. Algunas funciones no estarán disponibles.
+                </div>
+            )}
+
             <AppSidebar
                 user={user}
                 activePage={activePage}
@@ -292,7 +315,9 @@ createRoot(
     document.getElementById('root')!
 ).render(
     <BrandingProvider>
-        <App />
+        <ToastProvider>
+            <App />
+        </ToastProvider>
     </BrandingProvider>
 
 )

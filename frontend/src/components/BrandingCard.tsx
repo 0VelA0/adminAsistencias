@@ -4,33 +4,31 @@ import { DEFAULT_BRANDING, applyTheme, useBranding } from '../lib/branding'
 import { fileToLogo } from '../lib/image'
 import type { Branding } from '../lib/types'
 import { Logo } from './Logo'
+import { useToast } from '../components/Toast'
 
 export function BrandingCard({ token }: { token: string }) {
     const { branding, setBranding } = useBranding()
+    const toast = useToast()
 
     const [name, setName] = useState(branding.company_name)
     const [primary, setPrimary] = useState(branding.primary_color)
     const [sidebar, setSidebar] = useState(branding.sidebar_color)
     const [busy, setBusy] = useState(false)
-    const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null)
 
     const fileRef = useRef<HTMLInputElement>(null)
     const saved = useRef(branding)
     saved.current = branding
 
+    // Vista previa en vivo; si sales sin guardar se restaura lo guardado
     useEffect(() => {
         applyTheme({ primary_color: primary, sidebar_color: sidebar })
     }, [primary, sidebar])
 
     useEffect(() => () => applyTheme(saved.current), [])
 
-    const fail = (error: unknown, fallback: string) =>
-        setStatus({ text: error instanceof Error ? error.message : fallback, ok: false })
-
     const save = async (event: React.FormEvent) => {
         event.preventDefault()
         setBusy(true)
-        setStatus(null)
 
         try {
             const updated = await api<Branding>(
@@ -47,9 +45,9 @@ export function BrandingCard({ token }: { token: string }) {
             )
 
             setBranding(updated)
-            setStatus({ text: 'Apariencia guardada.', ok: true })
+            toast.success('Apariencia guardada correctamente.')
         } catch (error) {
-            fail(error, 'No se pudo guardar.')
+            toast.error(error instanceof Error ? error.message : 'No se pudo guardar.')
         } finally {
             setBusy(false)
         }
@@ -61,7 +59,6 @@ export function BrandingCard({ token }: { token: string }) {
         if (!file) return
 
         setBusy(true)
-        setStatus(null)
 
         try {
             const logo = await fileToLogo(file)
@@ -74,9 +71,9 @@ export function BrandingCard({ token }: { token: string }) {
                 )
             )
 
-            setStatus({ text: 'Logo actualizado.', ok: true })
+            toast.success('Logo actualizado.')
         } catch (error) {
-            fail(error, 'No se pudo cambiar el logo.')
+            toast.error(error instanceof Error ? error.message : 'No se pudo cambiar el logo.')
         } finally {
             setBusy(false)
         }
@@ -84,13 +81,12 @@ export function BrandingCard({ token }: { token: string }) {
 
     const removeLogo = async () => {
         setBusy(true)
-        setStatus(null)
 
         try {
             setBranding(await api<Branding>('/branding/logo', { method: 'DELETE' }, token))
-            setStatus({ text: 'Logo restablecido.', ok: true })
+            toast.success('Logo restablecido.')
         } catch (error) {
-            fail(error, 'No se pudo quitar el logo.')
+            toast.error(error instanceof Error ? error.message : 'No se pudo quitar el logo.')
         } finally {
             setBusy(false)
         }
@@ -106,8 +102,10 @@ export function BrandingCard({ token }: { token: string }) {
                 <span className="dashboard-card-icon">🎨</span>
             </div>
 
-            <form className="settings-form" onSubmit={save}>
-                <div className="logo-row">
+            <form className="settings-form branding-form" onSubmit={save}>
+                <section className="branding-section">
+                    <h3>Logo</h3>
+
                     <div className="logo-preview">
                         <Logo />
                     </div>
@@ -141,43 +139,51 @@ export function BrandingCard({ token }: { token: string }) {
                             onChange={changeLogo}
                         />
                     </div>
-                </div>
 
-                <label>
-                    Nombre de la empresa
-                    <input
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        minLength={2}
-                        maxLength={120}
-                        required
-                    />
-                </label>
+                    <p className="muted branding-hint">
+                        PNG, JPG o WebP. Se ajusta automáticamente.
+                    </p>
+                </section>
 
-                <div className="color-grid">
-                    <label className="color-field">
-                        Color principal
-                        <input type="color" value={primary} onChange={e => setPrimary(e.target.value)} />
+                <section className="branding-section">
+                    <label>
+                        Nombre de la empresa
+                        <input
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            minLength={2}
+                            maxLength={120}
+                            required
+                        />
                     </label>
+                </section>
 
-                    <label className="color-field">
-                        Color del menú
-                        <input type="color" value={sidebar} onChange={e => setSidebar(e.target.value)} />
-                    </label>
-                </div>
+                <section className="branding-section">
+                    <h3>Colores</h3>
 
-                <button
-                    type="button"
-                    className="link"
-                    onClick={() => {
-                        setPrimary(DEFAULT_BRANDING.primary_color)
-                        setSidebar(DEFAULT_BRANDING.sidebar_color)
-                    }}
-                >
-                    Restablecer colores
-                </button>
+                    <div className="color-grid">
+                        <label className="color-field">
+                            Principal
+                            <input type="color" value={primary} onChange={e => setPrimary(e.target.value)} />
+                        </label>
 
-                {status && <p className={status.ok ? 'notice' : 'error'}>{status.text}</p>}
+                        <label className="color-field">
+                            Menú lateral
+                            <input type="color" value={sidebar} onChange={e => setSidebar(e.target.value)} />
+                        </label>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="link"
+                        onClick={() => {
+                            setPrimary(DEFAULT_BRANDING.primary_color)
+                            setSidebar(DEFAULT_BRANDING.sidebar_color)
+                        }}
+                    >
+                        Restablecer colores
+                    </button>
+                </section>
 
                 <button type="submit" className="compact" disabled={busy}>
                     {busy ? 'Guardando…' : 'Guardar apariencia'}

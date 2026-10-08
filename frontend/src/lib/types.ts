@@ -91,14 +91,29 @@ export type NotificationSettings = {
     notify_weekly: boolean
 }
 
-export type MissingToday = {
+export type TodayEntry = {
+    user: User
+    entry_at: string
+    exit_at: string | null
+    status: 'normal' | 'late'
+}
+
+export type TodayAbsence = {
+    user: User
+    start_date: string
+    end_date: string
+    kind: 'paid' | 'unpaid' | null
+}
+
+export type TodayOverview = {
     work_date: string
     is_workday: boolean
     late_limit: string
     limit_passed: boolean
+    registered: TodayEntry[]
     missing: User[]
-    on_vacation: User[]
-    on_permission: User[]
+    on_vacation: TodayAbsence[]
+    on_permission: TodayAbsence[]
 }
 
 export type Page =
