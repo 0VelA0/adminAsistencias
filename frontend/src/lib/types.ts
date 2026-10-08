@@ -134,4 +134,14 @@ export type Branding = {
     sidebar_color: string
 }
 
+export type MissingToday = {
+    work_date: string
+    is_workday: boolean
+    late_limit: string
+    limit_passed: boolean
+    missing: User[]
+    on_vacation: User[]
+    on_permission: User[]
+}
+
 export type UserCreated = User & { temporary_password: string }
