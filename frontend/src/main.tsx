@@ -180,7 +180,6 @@ function App() {
 
     return (
         <div className="app-layout">
-            tsx
             <AppSidebar
                 user={user}
                 activePage={activePage}
