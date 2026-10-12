@@ -1,25 +1,32 @@
+import { useState } from 'react'
 import type { Page, User } from '../lib/types'
 import { useBranding } from '../lib/branding'
 import { Avatar } from './Avatar'
+import { Icon } from './Icon'
+import type { IconName } from './Icon'
 import { Logo } from './Logo'
 
-type Item = { page: Page; icon: string; label: string }
+type Item = { page: Page; icon: IconName; label: string }
 
 const EMPLOYEE_ITEMS: Item[] = [
-  { page: 'dashboard', icon: '⌂', label: 'Dashboard' },
-  { page: 'attendance', icon: '◷', label: 'Asistencia' },
-  { page: 'vacations', icon: '▣', label: 'Vacaciones' },
-  { page: 'history', icon: '◴', label: 'Historial' },
-  { page: 'settings', icon: '⚙', label: 'Configuración' },
+  { page: 'dashboard', icon: 'home', label: 'Dashboard' },
+  { page: 'attendance', icon: 'clock', label: 'Asistencia' },
+  { page: 'vacations', icon: 'sun', label: 'Vacaciones' },
+  { page: 'history', icon: 'history', label: 'Historial' },
+  { page: 'spaces', icon: 'building', label: 'Espacios' },
+  { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
 const ADMIN_ITEMS: Item[] = [
-  { page: 'admin-home', icon: '⌂', label: 'Resumen' },
-  { page: 'admin-requests', icon: '✎', label: 'Solicitudes' },
-  { page: 'admin-attendance', icon: '◷', label: 'Asistencia' },
-  { page: 'users', icon: '☺', label: 'Usuarios' },
-  { page: 'settings', icon: '⚙', label: 'Configuración' },
+  { page: 'admin-home', icon: 'home', label: 'Resumen' },
+  { page: 'admin-requests', icon: 'clipboard', label: 'Solicitudes' },
+  { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
+  { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
+  { page: 'users', icon: 'users', label: 'Usuarios' },
+  { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
+
+const MOBILE_SLOTS = 5
 
 export function AppSidebar({
   user,
@@ -37,7 +44,17 @@ export function AppSidebar({
   onLogout: () => void
 }) {
   const { branding } = useBranding()
+  const [moreOpen, setMoreOpen] = useState(false)
+
   const items = adminView ? ADMIN_ITEMS : EMPLOYEE_ITEMS
+  const needsMore = items.length > MOBILE_SLOTS
+  const extraStart = MOBILE_SLOTS - 1
+  const extras = needsMore ? items.slice(extraStart) : []
+
+  const go = (page: Page) => {
+    setMoreOpen(false)
+    onPageChange(page)
+  }
 
   return (
     <aside className="sidebar">
@@ -51,22 +68,40 @@ export function AppSidebar({
       </div>
 
       <nav className="sidebar-nav">
-        {items.map(item => (
+        {items.map((item, index) => (
           <button
             key={item.page}
-            className={activePage === item.page ? 'active' : ''}
-            onClick={() => onPageChange(item.page)}
+            className={`${activePage === item.page ? 'active' : ''} ${
+              needsMore && index >= extraStart ? 'nav-extra' : ''
+            }`}
+            onClick={() => go(item.page)}
           >
-            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-icon">
+              <Icon name={item.icon} />
+            </span>
             <span className="nav-label">{item.label}</span>
           </button>
         ))}
+
+        {needsMore && (
+          <button
+            className={`nav-more ${extras.some(i => i.page === activePage) ? 'active' : ''}`}
+            onClick={() => setMoreOpen(open => !open)}
+          >
+            <span className="nav-icon">
+              <Icon name="more" />
+            </span>
+            <span className="nav-label">Más</span>
+          </button>
+        )}
       </nav>
 
       <div className="sidebar-bottom">
         {user.role === 'admin' && (
           <button className="sidebar-mode" onClick={onToggleAdmin}>
-            <span className="nav-icon">⇄</span>
+            <span className="nav-icon">
+              <Icon name="switch" size={16} />
+            </span>
             {adminView ? 'Vista de empleado' : 'Panel administrativo'}
           </button>
         )}
@@ -76,8 +111,8 @@ export function AppSidebar({
           role="button"
           tabIndex={0}
           title="Ir a mi perfil"
-          onClick={() => onPageChange('settings')}
-          onKeyDown={e => e.key === 'Enter' && onPageChange('settings')}
+          onClick={() => go('settings')}
+          onKeyDown={e => e.key === 'Enter' && go('settings')}
         >
           <Avatar user={user} size="md" />
 
@@ -88,9 +123,46 @@ export function AppSidebar({
         </div>
 
         <button className="sidebar-logout" onClick={onLogout}>
-          ↪ Cerrar sesión
+          <span className="nav-icon">
+            <Icon name="logout" size={16} />
+          </span>
+          Cerrar sesión
         </button>
       </div>
+
+      {moreOpen && (
+        <div className="more-backdrop" onClick={() => setMoreOpen(false)}>
+          <div className="more-sheet" onClick={e => e.stopPropagation()}>
+            {extras.map(item => (
+              <button
+                key={item.page}
+                className={activePage === item.page ? 'active' : ''}
+                onClick={() => go(item.page)}
+              >
+                <Icon name={item.icon} />
+                {item.label}
+              </button>
+            ))}
+
+            {user.role === 'admin' && (
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  onToggleAdmin()
+                }}
+              >
+                <Icon name="switch" />
+                {adminView ? 'Vista de empleado' : 'Panel administrativo'}
+              </button>
+            )}
+
+            <button onClick={onLogout}>
+              <Icon name="logout" />
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

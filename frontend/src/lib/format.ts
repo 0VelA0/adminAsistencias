@@ -57,3 +57,22 @@ export const initials = (name: string) =>
         .map(word => word[0])
         .join('')
         .toUpperCase()
+
+export const toMin = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number)
+    return h * 60 + m
+}
+
+export const fromMin = (total: number) =>
+    `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+
+export const timeOptions = (from: string, to: string, step = 15) => {
+    const out: string[] = []
+    for (let m = toMin(from); m <= toMin(to); m += step) out.push(fromMin(m))
+    return out
+}
+
+export const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+export const parseServerDate = (value: string) =>
+    new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`)

@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react'
-import type { User } from '../lib/types'
+import type { Page, User } from '../lib/types'
 import { Avatar } from './Avatar'
+import { Icon } from './Icon'
 import { Logo } from './Logo'
+import { NotificationBell } from './NotificationBell'
 
 export function AppHeader({
     user,
+    token,
     adminView,
     onToggleAdmin,
     onProfileClick,
+    onNavigate,
     onLogout,
 }: {
     user: User
+    token: string
     adminView: boolean
     onToggleAdmin: () => void
     onProfileClick: () => void
+    onNavigate: (page: Page) => void
     onLogout: () => void
 }) {
     const [now, setNow] = useState(new Date())
@@ -63,6 +69,8 @@ export function AppHeader({
                     <span>{date}</span>
                 </div>
 
+                <NotificationBell token={token} onNavigate={onNavigate} />
+
                 <div
                     className="dashboard-user"
                     role="button"
@@ -81,7 +89,7 @@ export function AppHeader({
 
                 {user.role === 'admin' && (
                     <button className="secondary compact header-toggle" onClick={onToggleAdmin}>
-                        <span className="toggle-icon">⇄</span>
+                        <Icon name="switch" size={16} />
                         <span className="toggle-text">
                             {adminView ? 'Mi asistencia' : 'Panel administrativo'}
                         </span>
@@ -93,7 +101,7 @@ export function AppHeader({
                     onClick={onLogout}
                     aria-label="Cerrar sesión"
                 >
-                    ↪
+                    <Icon name="logout" size={16} />
                 </button>
             </div>
         </header>

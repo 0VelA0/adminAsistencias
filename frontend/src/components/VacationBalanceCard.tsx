@@ -1,5 +1,6 @@
 import type { VacationBalance, VacationRequest } from '../lib/types'
 import { formatRange } from '../lib/format'
+import { Icon } from './Icon'
 
 export function VacationBalanceCard({
     balance,
@@ -17,7 +18,7 @@ export function VacationBalanceCard({
                     <p className="eyebrow">SALDO</p>
                     <h2>Días de vacaciones disponibles</h2>
                 </div>
-                <span className="dashboard-card-icon">🏖️</span>
+                <Icon name="sun" />
             </div>
 
             <div className="balance-main">

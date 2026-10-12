@@ -1,3 +1,5 @@
+import { Icon } from './Icon'
+
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 const W = 300
@@ -46,7 +48,7 @@ export function PunctualityTrendCard({
                     <p className="eyebrow">AÑO ACTUAL</p>
                     <h2>Tendencia de puntualidad</h2>
                 </div>
-                <span className="dashboard-card-icon">↗</span>
+                <Icon name="trend" />
             </div>
 
             <svg

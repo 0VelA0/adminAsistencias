@@ -28,6 +28,8 @@ import { FullScreenStatus } from './components/StatusBlocks'
 import { useOnline } from './lib/useOnline'
 
 import './styles.css'
+import { SpacesAdminPage } from './pages/SpacesAdminPage'
+import { SpacesPage } from './pages/SpacesPage'
 
 
 function App() {
@@ -176,6 +178,15 @@ function App() {
         setAdminView(false)
     }
 
+    const goTo = (page: Page) => {
+        const adminPage = page.startsWith('admin-') || page === 'users'
+
+        if (adminPage) setAdminView(true)
+        else if (page !== 'settings') setAdminView(false)
+
+        setActivePage(page)
+    }
+
 
     if (!token) {
         return (
@@ -220,6 +231,8 @@ function App() {
                     onToggleAdmin={toggleAdmin}
                     onProfileClick={() => setActivePage('settings')}
                     onLogout={logout}
+                    token={token}
+                    onNavigate={goTo}
                 />
                 {adminView &&
                 user.role === 'admin' ? (
@@ -239,6 +252,8 @@ function App() {
                             {activePage === 'settings' && (
                                 <SettingsPage token={token} user={user} onUserChange={setUser} />
                             )}
+                             
+                            {activePage === 'admin-spaces' && <SpacesAdminPage token={token} user={user} />}
                         </>
                 ) : (
                     <>
@@ -300,6 +315,8 @@ function App() {
                         {activePage === 'users' && user.role === 'admin' && (
                             <UsersPage token={token} currentUser={user} />
                         )}
+                       
+                        {activePage === 'spaces' && <SpacesPage token={token} user={user} />}
                             
                     </>
 

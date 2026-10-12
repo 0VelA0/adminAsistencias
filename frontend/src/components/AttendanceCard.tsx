@@ -2,6 +2,7 @@ import type {
     AttendanceRecord,
     AttendanceToday,
 } from '../lib/types'
+import { Icon } from './Icon'
 
 export function AttendanceCard({
     today,
@@ -34,16 +35,11 @@ export function AttendanceCard({
                         </h2>
                     </div>
 
-                    <span className="dashboard-card-icon">
-                        ◷
-                    </span>
+                    <Icon name="clock" />
                 </div>
 
                 <div className="attendance-vacation">
-                    <strong>
-                        🏖️ Día de vacaciones
-                    </strong>
-
+                    <Icon name="sun" size={14} />
                     <p>
                         Tienes vacaciones aprobadas
                         para hoy.
@@ -69,9 +65,7 @@ export function AttendanceCard({
                     </h2>
                 </div>
 
-                <span className="dashboard-card-icon">
-                    ◷
-                </span>
+                <Icon name="clock" />
 
             </div>
 
@@ -80,9 +74,7 @@ export function AttendanceCard({
 
                 <div className="attendance-action">
 
-                    <span className="attendance-icon entry">
-                        {hasEntry ? '✓' : '◷'}
-                    </span>
+                    <Icon name={hasEntry ? 'check' : 'clock'} size={16} />
 
                     <div>
                         <strong>
@@ -124,9 +116,7 @@ export function AttendanceCard({
 
                 <div className="attendance-action">
 
-                    <span className="attendance-icon exit">
-                        {hasExit ? '✓' : '◷'}
-                    </span>
+                    <Icon name={hasExit ? 'check' : 'clock'} size={16} />
 
                     <div>
                         <strong>
@@ -176,9 +166,7 @@ export function AttendanceCard({
 
             <div className="attendance-footer">
 
-                <span>
-                    📍
-                </span>
+                <Icon name="pin" size={13} />
 
                 <span>
                     {isStation

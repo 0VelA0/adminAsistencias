@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { Icon } from './Icon'
 
 type ToastItem = { id: number; kind: 'ok' | 'error'; text: string }
 
@@ -37,13 +38,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         <ToastContext.Provider value={api}>
             {children}
 
-            <div className="toast-stack" role="status" aria-live="polite">
-                {toasts.map(toast => (
-                    <div key={toast.id} className={`toast ${toast.kind}`}>
-                        {toast.text}
-                    </div>
-                ))}
-            </div>
+            {toasts.map(toast => (
+                <div key={toast.id} className={`toast ${toast.kind}`}>
+                    <span className="toast-icon">
+                        <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={13} />
+                    </span>
+                    <span>{toast.text}</span>
+                </div>
+            ))}
+
         </ToastContext.Provider>
     )
 }

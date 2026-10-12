@@ -8,6 +8,8 @@ import { Avatar } from '../components/Avatar'
 import { formatDay } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
 import { StateView } from '../components/StatusBlocks'
+import { Icon } from '../components/Icon'
+import { useToast } from '../components/Toast'
 
 type Credentials = {
     title: string
@@ -32,12 +34,12 @@ export function UsersPage({
     const [busyId, setBusyId] = useState<number | null>(null)
     const [error, setError] = useState('')
     const [editing, setEditing] = useState<User | null>(null)
+    const toast = useToast()
 
     const load = list.reload
 
     const toggleActive = async (user: User) => {
         const verb = user.is_active ? 'desactivar' : 'activar'
-
         if (!window.confirm(`¿Quieres ${verb} a ${user.full_name}?`)) return
 
         setBusyId(user.id)
@@ -48,9 +50,11 @@ export function UsersPage({
                 { method: 'PATCH', body: JSON.stringify({ is_active: !user.is_active }) },
                 token
             )
-            await load()
+
+            toast.success(`${user.full_name} fue ${user.is_active ? 'desactivado' : 'activado'}.`)
+            load()
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'No se pudo actualizar el usuario.')
+            toast.error(e instanceof Error ? e.message : 'No se pudo actualizar el usuario.')
         } finally {
             setBusyId(null)
         }
@@ -113,7 +117,7 @@ export function UsersPage({
 
             <section className="admin-stats">
                 <article className="overview-card">
-                    <span className="overview-icon info">☺</span>
+                    <Icon name="users" />
                     <div>
                         <strong>{users.length}</strong>
                         <span>Usuarios en total</span>
@@ -121,7 +125,7 @@ export function UsersPage({
                 </article>
 
                 <article className="overview-card">
-                    <span className="overview-icon approved">✓</span>
+                    <Icon name="check" />
                     <div>
                         <strong>{active}</strong>
                         <span>Activos</span>
@@ -129,7 +133,7 @@ export function UsersPage({
                 </article>
 
                 <article className="overview-card">
-                    <span className="overview-icon rejected">×</span>
+                    <Icon name="x" />
                     <div>
                         <strong>{users.length - active}</strong>
                         <span>Inactivos</span>
@@ -137,7 +141,7 @@ export function UsersPage({
                 </article>
 
                 <article className="overview-card">
-                    <span className="overview-icon pending">★</span>
+                    <Icon name="shield" />
                     <div>
                         <strong>{admins}</strong>
                         <span>Administradores</span>
@@ -187,13 +191,13 @@ export function UsersPage({
                         ) : (
                             <div className="table-card">
                                 <div className="table-scroll">
-                                    <table className="data-table">
+                                    <table className="data-table users-table">
                                         <thead>
                                             <tr>
-                                                <th>Usuario</th>
+                                                <th className="user-column">Usuario</th>
                                                 <th>Rol</th>
                                                 <th>Estado</th>
-                                                <th>Acciones</th>
+                                                <th data-label="Acciones" className="col-actions">Acciones</th>
                                             </tr>
                                         </thead>
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     work_start_time: str = "09:00"
     late_grace_minutes: int = 10
     timezone: str = "America/Merida"
+    work_end_time: str = "18:00"
 
 
 settings = Settings()

@@ -1,17 +1,10 @@
-import { useRef,useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { Profile, User } from '../lib/types'
 import { fileToAvatar } from '../lib/image'
+import type { Profile, User } from '../lib/types'
 import { Avatar } from './Avatar'
-
-const initials = (name: string) =>
-    name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(word => word[0])
-        .join('')
-        .toUpperCase()
+import { useToast } from './Toast'
+import { Icon } from './Icon'
 
 export function ProfileCard({
     token,
@@ -24,43 +17,39 @@ export function ProfileCard({
     profile: Profile
     onUserChange: (user: User) => void
 }) {
+    const toast = useToast()
+    const fileRef = useRef<HTMLInputElement>(null)
+
     const [fullName, setFullName] = useState(profile.full_name)
     const [phone, setPhone] = useState(profile.phone ?? '')
     const [saving, setSaving] = useState(false)
-    const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null)
+    const [avatarBusy, setAvatarBusy] = useState(false)
+
+    const fail = (error: unknown, fallback: string) =>
+        toast.error(error instanceof Error ? error.message : fallback)
 
     const save = async (event: React.FormEvent) => {
         event.preventDefault()
         setSaving(true)
-        setStatus(null)
 
         try {
             const updated = await api<Profile>(
                 '/profile',
                 {
                     method: 'PUT',
-                    body: JSON.stringify({
-                        full_name: fullName.trim(),
-                        phone: phone.trim() || null,
-                    }),
+                    body: JSON.stringify({ full_name: fullName.trim(), phone: phone.trim() || null }),
                 },
                 token
             )
 
             onUserChange({ ...user, full_name: updated.full_name })
-            setStatus({ text: 'Perfil actualizado correctamente.', ok: true })
+            toast.success('Perfil actualizado correctamente.')
         } catch (error) {
-            setStatus({
-                text: error instanceof Error ? error.message : 'No se pudo guardar el perfil.',
-                ok: false,
-            })
+            fail(error, 'No se pudo guardar el perfil.')
         } finally {
             setSaving(false)
         }
     }
-
-    const fileRef = useRef<HTMLInputElement>(null)
-    const [avatarBusy, setAvatarBusy] = useState(false)
 
     const changeAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
@@ -68,24 +57,21 @@ export function ProfileCard({
         if (!file) return
 
         setAvatarBusy(true)
-        setStatus(null)
 
         try {
             const avatar = await fileToAvatar(file)
 
-            const updated = await api<User>(
-                '/profile/avatar',
-                { method: 'PUT', body: JSON.stringify({ avatar }) },
-                token
+            onUserChange(
+                await api<User>(
+                    '/profile/avatar',
+                    { method: 'PUT', body: JSON.stringify({ avatar }) },
+                    token
+                )
             )
 
-            onUserChange(updated)
-            setStatus({ text: 'Foto actualizada.', ok: true })
+            toast.success('Foto actualizada.')
         } catch (error) {
-            setStatus({
-                text: error instanceof Error ? error.message : 'No se pudo cambiar la foto.',
-                ok: false,
-            })
+            fail(error, 'No se pudo cambiar la foto.')
         } finally {
             setAvatarBusy(false)
         }
@@ -93,16 +79,12 @@ export function ProfileCard({
 
     const removeAvatar = async () => {
         setAvatarBusy(true)
-        setStatus(null)
 
         try {
             onUserChange(await api<User>('/profile/avatar', { method: 'DELETE' }, token))
-            setStatus({ text: 'Foto eliminada.', ok: true })
+            toast.success('Foto eliminada.')
         } catch (error) {
-            setStatus({
-                text: error instanceof Error ? error.message : 'No se pudo eliminar la foto.',
-                ok: false,
-            })
+            fail(error, 'No se pudo eliminar la foto.')
         } finally {
             setAvatarBusy(false)
         }
@@ -115,12 +97,14 @@ export function ProfileCard({
                     <p className="eyebrow">CUENTA</p>
                     <h2>Perfil de usuario</h2>
                 </div>
-                <span className="dashboard-card-icon">☺</span>
+                <span className="dashboard-card-icon">
+                    <Icon name="user" />
+                </span>
             </div>
 
             <form className="settings-form" onSubmit={save}>
                 <div className="profile-head">
-                    <Avatar user={user}  />
+                    <Avatar user={user} size="lg" />
 
                     <div className="avatar-actions">
                         <button
@@ -143,13 +127,7 @@ export function ProfileCard({
                             </button>
                         )}
 
-                        <input
-                            ref={fileRef}
-                            type="file"
-                            accept="image/*"
-                            hidden
-                            onChange={changeAvatar}
-                        />
+                        <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeAvatar} />
                     </div>
                 </div>
 
@@ -179,10 +157,6 @@ export function ProfileCard({
                         placeholder="Opcional"
                     />
                 </label>
-
-                {status && (
-                    <p className={status.ok ? 'notice' : 'error'}>{status.text}</p>
-                )}
 
                 <button type="submit" className="compact" disabled={saving}>
                     {saving ? 'Guardando…' : 'Guardar perfil'}

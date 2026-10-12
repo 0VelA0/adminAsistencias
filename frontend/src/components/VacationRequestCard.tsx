@@ -1,5 +1,6 @@
 import type { VacationRequest } from '../lib/types'
 import { STATUS_LABEL, formatRange } from '../lib/format'
+import { Icon } from './Icon'
 
 export function VacationRequestsCard({
     requests,
@@ -15,7 +16,7 @@ export function VacationRequestsCard({
                     <p className="eyebrow">SOLICITUDES</p>
                     <h2>Mis solicitudes de vacaciones</h2>
                 </div>
-                <span className="dashboard-card-icon">✎</span>
+                <Icon name="clipboard" />
             </div>
 
             {!latest.length ? (
@@ -38,17 +39,11 @@ export function VacationRequestsCard({
                         <tbody>
                             {latest.map(r => (
                                 <tr key={r.id}>
-                                    <td>{formatRange(r.start_date, r.end_date)}</td>
-                                    <td>{r.days}</td>
-                                    <td className="reason-cell" title={r.reason ?? ''}>
-                                        {r.reason ?? '—'}
-                                    </td>
-                                    <td>
-                                        <span className={`badge ${r.status}`}>
-                                            {STATUS_LABEL[r.status]}
-                                        </span>
-                                    </td>
-                                    <td>{r.reviewed_by_name ?? '—'}</td>
+                                    <td data-label="Fecha(s)">{formatRange(r.start_date, r.end_date)}</td>
+                                    <td data-label="Días">{r.days}</td>
+                                    <td data-label="Motivo" className="reason-cell" title={r.reason ?? ''}>{r.reason ?? '—'}</td>
+                                    <td data-label="Estado"><span className={`badge ${r.status}`}>{STATUS_LABEL[r.status]}</span></td>
+                                    <td data-label="Autorizó">{r.reviewed_by_name ?? '—'}</td>
                                 </tr>
                             ))}
                         </tbody>

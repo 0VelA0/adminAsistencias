@@ -1,4 +1,5 @@
 import type { PermissionRequest } from '../lib/types'
+import { Icon } from './Icon'
 
 const KIND = { paid: 'Con goce', unpaid: 'Sin goce' } as const
 
@@ -38,7 +39,7 @@ export function PermissionsCard({
                     <p className="eyebrow">PERMISOS</p>
                     <h2>Mis solicitudes de permisos</h2>
                 </div>
-                <span className="dashboard-card-icon">✎</span>
+                <Icon name="file" />
             </div>
 
             {!latest.length ? (
@@ -61,20 +62,11 @@ export function PermissionsCard({
                         <tbody>
                             {latest.map(r => (
                                 <tr key={r.id}>
-                                    <td>
-                                        <span className={`kind-dot ${r.kind}`} />
-                                        {KIND[r.kind]}
-                                    </td>
-                                    <td>{formatRange(r.start_date, r.end_date)}</td>
-                                    <td className="reason-cell" title={r.reason}>
-                                        {r.reason}
-                                    </td>
-                                    <td>
-                                        <span className={`badge ${r.status}`}>
-                                            {STATUS[r.status]}
-                                        </span>
-                                    </td>
-                                    <td>{r.reviewed_by_name ?? '—'}</td>
+                                    <td data-label="Tipo"><span className={`kind-dot ${r.kind}`} />{KIND[r.kind]}</td>
+                                    <td data-label="Fecha(s)">{formatRange(r.start_date, r.end_date)}</td>
+                                    <td data-label="Motivo" className="reason-cell" title={r.reason}>{r.reason}</td>
+                                    <td data-label="Estado"><span className={`badge ${r.status}`}>{STATUS[r.status]}</span></td>
+                                    <td data-label="Autorizó">{r.reviewed_by_name ?? '—'}</td>
                                 </tr>
                             ))}
                         </tbody>

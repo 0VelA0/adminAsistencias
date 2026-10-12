@@ -1,4 +1,5 @@
 import type { PermissionRequest, VacationRequest } from '../lib/types'
+import { Icon } from './Icon'
 
 export function RequestsTotalCard({
     vacations,
@@ -16,7 +17,7 @@ export function RequestsTotalCard({
                     <p className="eyebrow">SOLICITUDES</p>
                     <h2>Total de solicitudes</h2>
                 </div>
-                <span className="dashboard-card-icon">✎</span>
+                <Icon name="clipboard" />
             </div>
 
             <div className="balance-main">
@@ -26,8 +27,8 @@ export function RequestsTotalCard({
 
             <div className="balance-footer">
                 <div className="requests-counts">
-                    <span>🏖️ Vacaciones: {vacations.length}</span>
-                    <span>📝 Permisos: {permissions.length}</span>
+                    <span> <Icon name="sun" size={14} /> Vacaciones: {vacations.length}</span>
+                    <span> <Icon name="file" size={14} /> Permisos: {permissions.length}</span>
                 </div>
 
                 <button type="button" className="compact" onClick={onDetails}>

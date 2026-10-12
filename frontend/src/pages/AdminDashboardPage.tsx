@@ -7,6 +7,7 @@ import { RecordTable } from '../components/RecordTable'
 import { StateView } from '../components/StatusBlocks'
 import { StationQrPanel } from '../components/StationQrPanel'
 import { TodayOverview } from '../components/TodayOverview'
+import { Icon } from '../components/Icon'
 
 type Section = 'home' | 'requests' | 'attendance'
 
@@ -59,7 +60,7 @@ function AdminHome({
         <>
             <section className="admin-stats">
                 <article className="overview-card">
-                    <span className="overview-icon approved">✓</span>
+                    <Icon name="check" />
                     <div>
                         <strong>{data ? data.registered.length : '–'}</strong>
                         <span>Registraron entrada hoy</span>
@@ -67,7 +68,7 @@ function AdminHome({
                 </article>
 
                 <article className="overview-card">
-                    <span className="overview-icon pending">◷</span>
+                    <Icon name="clock" />
                     <div>
                         <strong>
                             {data ? data.registered.filter(r => r.status === 'late').length : '–'}
@@ -77,7 +78,7 @@ function AdminHome({
                 </article>
 
                 <article className="overview-card">
-                    <span className="overview-icon rejected">×</span>
+                    <Icon name="x" />
                     <div>
                         <strong>{data ? data.missing.length : '–'}</strong>
                         <span>Sin registrar</span>
@@ -91,7 +92,7 @@ function AdminHome({
                     onClick={() => onNavigate('admin-requests')}
                     onKeyDown={e => e.key === 'Enter' && onNavigate('admin-requests')}
                 >
-                    <span className="overview-icon alert">!</span>
+                    <Icon name="alert" />
                     <div>
                         <strong>{pending.data ?? '–'}</strong>
                         <span>Solicitudes por aprobar</span>

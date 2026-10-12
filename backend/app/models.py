@@ -314,3 +314,63 @@ class CompanySettings(Base):
 
     primary_color: Mapped[str] = mapped_column(String(7), default="#2463d4")
     sidebar_color: Mapped[str] = mapped_column(String(7), default="#071526")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedupe_key", name="uq_notification_user_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    title: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(String(500))
+    page: Mapped[str] = mapped_column(String(30))
+    dedupe_key: Mapped[str] = mapped_column(String(120))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+class Space(Base):
+    __tablename__ = "spaces"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(60))
+    capacity: Mapped[int] = mapped_column(Integer, default=1)
+    location: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    equipment: Mapped[str] = mapped_column(String(900), default="")
+    open_minutes: Mapped[int] = mapped_column(Integer, default=480)
+    close_minutes: Mapped[int] = mapped_column(Integer, default=1140)
+    open_days: Mapped[str] = mapped_column(String(20), default="0,1,2,3,4")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class SpaceBooking(Base):
+    __tablename__ = "space_bookings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(150))
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    booking_date: Mapped[date] = mapped_column(Date, index=True)
+    start_minutes: Mapped[int] = mapped_column(Integer)
+    end_minutes: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default="confirmed", index=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )

@@ -1,4 +1,5 @@
 import type { VacationBalance } from '../lib/types'
+import { Icon } from './Icon'
 
 export function VacationUsageCard({
     balance,
@@ -17,7 +18,7 @@ export function VacationUsageCard({
                     <p className="eyebrow">AÑO ACTUAL</p>
                     <h2>Días de vacaciones usados</h2>
                 </div>
-                <span className="dashboard-card-icon">◔</span>
+                <Icon name="pie" />
             </div>
 
             <div

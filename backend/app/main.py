@@ -10,13 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pwdlib import PasswordHash
-from sqlalchemy import and_, or_, select, inspect, text
+from sqlalchemy import and_, or_, select, inspect, text, delete, func, update
 from sqlalchemy.orm import Session
 import base64
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -51,7 +51,15 @@ from .schemas import (
     UserUpdate,
     AvatarInput,
     BrandingOut,
-    BrandingUpdate
+    BrandingUpdate,
+    NotificationOut,
+    NotificationsOut,
+    SpaceIn,
+    SpaceOut,
+    BookingIn,
+    BookingOut,
+    to_minutes,
+    to_hhmm
 )
 
 
@@ -1402,6 +1410,13 @@ def create_vacation_request(
     db.commit()
     db.refresh(vacation)
 
+    notify_admins(
+        db, "vacation", "Nueva solicitud de vacaciones",
+        f"{user.full_name} solicitó vacaciones del {vacation.start_date:%d/%m/%Y} al {vacation.end_date:%d/%m/%Y}.",
+        "admin-requests", f"vacation-new-{vacation.id}",
+    )
+    db.commit()
+
     return vacation
 
 
@@ -1666,6 +1681,12 @@ def approve_vacation(
         timezone.utc
     )
 
+    create_notification(
+        db, vacation.user_id, "vacation", "Vacaciones aprobadas",
+        f"Tu solicitud del {vacation.start_date:%d/%m/%Y} al {vacation.end_date:%d/%m/%Y} fue aprobada.",
+        "vacations", f"vacation-{vacation.id}-approved",
+    )
+
     db.commit()
     db.refresh(vacation)
 
@@ -1709,6 +1730,12 @@ def reject_vacation(
     vacation.reviewed_by_id = admin.id
     vacation.reviewed_at = datetime.now(
         timezone.utc
+    )
+
+    create_notification(
+        db, vacation.user_id, "vacation", "Vacaciones rechazadas",
+        f"Tu solicitud del {vacation.start_date:%d/%m/%Y} al {vacation.end_date:%d/%m/%Y} fue rechazada.",
+        "vacations", f"vacation-{vacation.id}-rejected",
     )
 
     db.commit()
@@ -1889,6 +1916,13 @@ def create_permission_request(
     db.commit()
     db.refresh(permission)
 
+    notify_admins(
+        db, "permission", "Nueva solicitud de permiso",
+        f"{user.full_name} solicitó un permiso del {permission.start_date:%d/%m/%Y} al {permission.end_date:%d/%m/%Y}.",
+        "admin-requests", f"permission-new-{permission.id}",
+    )
+    db.commit()
+
     return permission_to_out(permission, db)
 
 
@@ -2008,6 +2042,14 @@ def review_permission(
     permission.admin_note = data.admin_note
     permission.reviewed_by_id = admin.id
     permission.reviewed_at = datetime.now(timezone.utc)
+
+    create_notification(
+        db, permission.user_id, "permission",
+        "Permiso aprobado" if new_status == "approved" else "Permiso rechazado",
+        f"Tu permiso del {permission.start_date:%d/%m/%Y} al {permission.end_date:%d/%m/%Y} fue "
+        f"{'aprobado' if new_status == 'approved' else 'rechazado'}.",
+        "attendance", f"permission-{permission.id}-{new_status}",
+    )
 
     db.commit()
     db.refresh(permission)
@@ -2233,21 +2275,13 @@ def update_user(
     target = db.get(User, user_id)
 
     if not target:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado.",
-        )
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
     if target.id == admin.id:
-        if data.is_active is False or (
-            data.role is not None and data.role != "admin"
-        ):
+        if data.is_active is False or (data.role is not None and data.role != "admin"):
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "No puedes desactivarte ni quitarte "
-                    "el rol de administrador a ti mismo."
-                ),
+                detail="No puedes desactivarte ni quitarte el rol de administrador a ti mismo.",
             )
 
         if data.password is not None:
@@ -2265,17 +2299,16 @@ def update_user(
     if data.is_active is not None:
         target.is_active = data.is_active
 
-    if data.password is not None:
-        target.password_hash = password_hash.hash(data.password)
-
     if data.hire_date is not None:
         target.hire_date = data.hire_date
+
+    if data.password is not None:
+        target.password_hash = password_hash.hash(data.password)
 
     db.commit()
     db.refresh(target)
 
     return target
-
 # AVATAR
 
 def validate_avatar(value: str) -> None:
@@ -2396,6 +2429,524 @@ def remove_logo(
 
     return row
 
+# =========================================================
+# NOTIFICACIONES
+# =========================================================
+
+PREF_BY_KIND = {
+    "missing_exit": "notify_attendance",
+    "vacation": "notify_vacations",
+    "permission": "notify_permissions",
+}
+
+
+def create_notification(
+    db: Session,
+    user_id: int,
+    kind: str,
+    title: str,
+    body: str,
+    page: str,
+    dedupe_key: str,
+) -> None:
+    """Agrega la notificación a la sesión (el commit lo hace quien llama)."""
+
+    pref = PREF_BY_KIND.get(kind)
+
+    if pref and not getattr(get_or_create_preferences(db, user_id), pref):
+        return
+
+    exists = db.scalar(
+        select(Notification.id).where(
+            Notification.user_id == user_id,
+            Notification.dedupe_key == dedupe_key,
+        )
+    )
+
+    if not exists:
+        db.add(
+            Notification(
+                user_id=user_id,
+                kind=kind,
+                title=title,
+                body=body,
+                page=page,
+                dedupe_key=dedupe_key,
+            )
+        )
+
+
+def notify_admins(
+    db: Session,
+    kind: str,
+    title: str,
+    body: str,
+    page: str,
+    dedupe_key: str,
+) -> None:
+    admin_ids = db.scalars(
+        select(User.id).where(
+            User.role == "admin",
+            User.is_active.is_(True),
+        )
+    ).all()
+
+    for admin_id in admin_ids:
+        create_notification(db, admin_id, kind, title, body, page, dedupe_key)
+
+
+def sync_attendance_notifications(
+    db: Session,
+    user: User,
+    prefs: UserPreferences,
+) -> None:
+    """Avisa de entradas sin salida y retira el aviso si ya se corrigió."""
+
+    if not prefs.notify_attendance:
+        return
+
+    now_local = get_local_now()
+    today = now_local.date()
+
+    hours, minutes = map(
+        int,
+        getattr(settings, "work_end_time", "18:00").split(":")[:2],
+    )
+
+    today_cutoff = now_local.replace(
+        hour=hours,
+        minute=minutes,
+        second=0,
+        microsecond=0,
+    ) + timedelta(minutes=30)
+
+    by_date: dict[date, dict[str, AttendanceRecord]] = {}
+
+    for record in db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.user_id == user.id,
+            AttendanceRecord.work_date >= today - timedelta(days=14),
+        )
+    ).all():
+        by_date.setdefault(record.work_date, {})[record.kind] = record
+
+    existing = {
+        n.dedupe_key: n
+        for n in db.scalars(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.kind == "missing_exit",
+            )
+        ).all()
+    }
+
+    for work_date, kinds in by_date.items():
+        key = f"missing-exit-{work_date.isoformat()}"
+
+        missing = (
+            "entry" in kinds
+            and "exit" not in kinds
+            and (work_date < today or now_local > today_cutoff)
+        )
+
+        if missing and key not in existing:
+            db.add(
+                Notification(
+                    user_id=user.id,
+                    kind="missing_exit",
+                    title="No registraste tu salida",
+                    body=(
+                        f"El {work_date:%d/%m/%Y} registraste tu entrada pero no tu salida. "
+                        "Pide a un administrador que la corrija."
+                        if work_date < today
+                        else "Ya terminó tu jornada y no has registrado tu salida."
+                    ),
+                    page="attendance",
+                    dedupe_key=key,
+                )
+            )
+
+        elif not missing and key in existing:
+            db.delete(existing[key])
+
+    db.commit()
+
+
+@app.get(
+    "/notifications",
+    response_model=NotificationsOut,
+)
+def list_notifications(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+
+    prefs = get_or_create_preferences(db, user.id)
+
+    try:
+        sync_attendance_notifications(db, user, prefs)
+    except Exception:
+        db.rollback()
+
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == user.id,
+            Notification.created_at < datetime.now(timezone.utc) - timedelta(days=60),
+        )
+    )
+    db.commit()
+
+    items = db.scalars(
+        select(Notification)
+        .where(Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
+        .limit(30)
+    ).all()
+
+    unread = db.scalar(
+        select(func.count())
+        .select_from(Notification)
+        .where(
+            Notification.user_id == user.id,
+            Notification.read_at.is_(None),
+        )
+    )
+
+    return NotificationsOut(
+        items=[NotificationOut.model_validate(n) for n in items],
+        unread=unread or 0,
+    )
+
+
+@app.post("/notifications/read-all")
+def read_all_notifications(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    db.execute(
+        update(Notification)
+        .where(
+            Notification.user_id == user.id,
+            Notification.read_at.is_(None),
+        )
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+
+    return {"ok": True}
+
+
+@app.post("/notifications/{notification_id}/read")
+def read_notification(
+    notification_id: int,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    db.execute(
+        update(Notification)
+        .where(
+            Notification.id == notification_id,
+            Notification.user_id == user.id,
+            Notification.read_at.is_(None),
+        )
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+
+    return {"ok": True}
+
+# =========================================================
+# ESPACIOS Y RESERVAS
+# =========================================================
+
+
+def space_to_out(space: Space) -> SpaceOut:
+    return SpaceOut(
+        id=space.id,
+        name=space.name,
+        kind=space.kind,
+        capacity=space.capacity,
+        location=space.location,
+        description=space.description,
+        equipment=[item for item in space.equipment.split("|") if item],
+        open_time=to_hhmm(space.open_minutes),
+        close_time=to_hhmm(space.close_minutes),
+        open_days=[int(d) for d in space.open_days.split(",") if d != ""],
+        is_active=space.is_active,
+    )
+
+
+def apply_space(space: Space, data: SpaceIn) -> None:
+    space.name = data.name.strip()
+    space.kind = data.kind.strip()
+    space.capacity = data.capacity
+    space.location = (data.location or "").strip() or None
+    space.description = (data.description or "").strip() or None
+    space.equipment = "|".join(data.equipment)
+    space.open_minutes = to_minutes(data.open_time)
+    space.close_minutes = to_minutes(data.close_time)
+    space.open_days = ",".join(str(day) for day in data.open_days)
+    space.is_active = data.is_active
+
+
+def booking_to_out(
+    booking: SpaceBooking,
+    space_name: str,
+    user_name: str,
+) -> BookingOut:
+    return BookingOut(
+        id=booking.id,
+        space_id=booking.space_id,
+        space_name=space_name,
+        user_id=booking.user_id,
+        user_name=user_name,
+        title=booking.title,
+        notes=booking.notes,
+        booking_date=booking.booking_date,
+        start_time=to_hhmm(booking.start_minutes),
+        end_time=to_hhmm(booking.end_minutes),
+        status=booking.status,
+    )
+
+
+@app.get("/spaces", response_model=list[SpaceOut])
+def list_spaces(
+    include_inactive: bool = False,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    query = select(Space).order_by(Space.name)
+
+    if not (include_inactive and user.role == "admin"):
+        query = query.where(Space.is_active.is_(True))
+
+    return [space_to_out(space) for space in db.scalars(query).all()]
+
+
+@app.post("/spaces", response_model=SpaceOut)
+def create_space(
+    data: SpaceIn,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    space = Space()
+    apply_space(space, data)
+
+    db.add(space)
+    db.commit()
+    db.refresh(space)
+
+    return space_to_out(space)
+
+
+@app.put("/spaces/{space_id}", response_model=SpaceOut)
+def update_space(
+    space_id: int,
+    data: SpaceIn,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    space = db.get(Space, space_id)
+
+    if not space:
+        raise HTTPException(status_code=404, detail="Espacio no encontrado.")
+
+    apply_space(space, data)
+    db.commit()
+    db.refresh(space)
+
+    return space_to_out(space)
+
+
+@app.delete("/spaces/{space_id}")
+def delete_space(
+    space_id: int,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    space = db.get(Space, space_id)
+
+    if not space:
+        raise HTTPException(status_code=404, detail="Espacio no encontrado.")
+
+    has_bookings = db.scalar(
+        select(SpaceBooking.id).where(SpaceBooking.space_id == space_id).limit(1)
+    )
+
+    if has_bookings:
+        raise HTTPException(
+            status_code=409,
+            detail="Este espacio ya tiene reservas. Desactívalo en lugar de eliminarlo.",
+        )
+
+    db.delete(space)
+    db.commit()
+
+    return {"ok": True}
+
+
+@app.get("/bookings", response_model=list[BookingOut])
+def bookings_for_day(
+    day: date,
+    _: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        select(SpaceBooking, Space.name, User.full_name)
+        .join(Space, SpaceBooking.space_id == Space.id)
+        .join(User, SpaceBooking.user_id == User.id)
+        .where(
+            SpaceBooking.booking_date == day,
+            SpaceBooking.status == "confirmed",
+        )
+        .order_by(SpaceBooking.start_minutes)
+    ).all()
+
+    return [booking_to_out(b, space_name, user_name) for b, space_name, user_name in rows]
+
+
+@app.get("/bookings/mine", response_model=list[BookingOut])
+def my_bookings(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        select(SpaceBooking, Space.name, User.full_name)
+        .join(Space, SpaceBooking.space_id == Space.id)
+        .join(User, SpaceBooking.user_id == User.id)
+        .where(
+            SpaceBooking.user_id == user.id,
+            SpaceBooking.booking_date >= get_work_date() - timedelta(days=30),
+        )
+        .order_by(SpaceBooking.booking_date.desc(), SpaceBooking.start_minutes.desc())
+    ).all()
+
+    return [booking_to_out(b, space_name, user_name) for b, space_name, user_name in rows]
+
+
+@app.post("/bookings", response_model=BookingOut)
+def create_booking(
+    data: BookingIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    space = db.get(Space, data.space_id)
+
+    if not space or not space.is_active:
+        raise HTTPException(status_code=404, detail="Este espacio no está disponible.")
+
+    start = to_minutes(data.start_time)
+    end = to_minutes(data.end_time)
+
+    if end <= start:
+        raise HTTPException(status_code=400, detail="La hora de fin debe ser posterior a la de inicio.")
+
+    if start % 15 or end % 15:
+        raise HTTPException(status_code=400, detail="Las reservas son en bloques de 15 minutos.")
+
+    if start < space.open_minutes or end > space.close_minutes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Este espacio está disponible de {to_hhmm(space.open_minutes)} "
+                f"a {to_hhmm(space.close_minutes)}."
+            ),
+        )
+
+    open_days = [int(d) for d in space.open_days.split(",") if d != ""]
+
+    if data.booking_date.weekday() not in open_days:
+        raise HTTPException(status_code=400, detail="Este espacio no abre ese día.")
+
+    now_local = get_local_now()
+    now_minutes = now_local.hour * 60 + now_local.minute
+
+    if data.booking_date < now_local.date() or (
+        data.booking_date == now_local.date() and start < now_minutes
+    ):
+        raise HTTPException(status_code=400, detail="No puedes reservar en el pasado.")
+
+    conflict = db.scalar(
+        select(SpaceBooking)
+        .where(
+            SpaceBooking.space_id == space.id,
+            SpaceBooking.booking_date == data.booking_date,
+            SpaceBooking.status == "confirmed",
+            SpaceBooking.start_minutes < end,
+            SpaceBooking.end_minutes > start,
+        )
+        .limit(1)
+    )
+
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Ese horario ya está reservado "
+                f"({to_hhmm(conflict.start_minutes)} a {to_hhmm(conflict.end_minutes)})."
+            ),
+        )
+
+    booking = SpaceBooking(
+        space_id=space.id,
+        user_id=user.id,
+        title=data.title.strip(),
+        notes=(data.notes or "").strip() or None,
+        booking_date=data.booking_date,
+        start_minutes=start,
+        end_minutes=end,
+    )
+
+    db.add(booking)
+    db.commit()
+    db.refresh(booking)
+
+    return booking_to_out(booking, space.name, user.full_name)
+
+
+@app.post("/bookings/{booking_id}/cancel", response_model=BookingOut)
+def cancel_booking(
+    booking_id: int,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    booking = db.get(SpaceBooking, booking_id)
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+
+    if booking.user_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="No puedes cancelar esta reserva.")
+
+    if booking.status != "confirmed":
+        raise HTTPException(status_code=409, detail="Esta reserva ya fue cancelada.")
+
+    if booking.booking_date < get_work_date():
+        raise HTTPException(status_code=409, detail="No se pueden cancelar reservas pasadas.")
+
+    booking.status = "cancelled"
+
+    space = db.get(Space, booking.space_id)
+    owner = db.get(User, booking.user_id)
+
+    if booking.user_id != user.id:
+        create_notification(
+            db,
+            booking.user_id,
+            "booking",
+            "Reserva cancelada",
+            (
+                f"Se canceló tu reserva de {space.name} el "
+                f"{booking.booking_date:%d/%m/%Y} a las {to_hhmm(booking.start_minutes)}."
+            ),
+            "spaces",
+            f"booking-{booking.id}-cancelled",
+        )
+
+    db.commit()
+    db.refresh(booking)
+
+    return booking_to_out(booking, space.name, owner.full_name)
 
 # =========================================================
 # FRONTEND ESTÁTICO

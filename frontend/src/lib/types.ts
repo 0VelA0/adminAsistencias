@@ -126,6 +126,8 @@ export type Page =
     | 'admin-home'
     | 'admin-requests'
     | 'admin-attendance'
+    | 'admin-spaces'
+    | 'spaces'
 
 export type Branding = {
     company_name: string
@@ -143,5 +145,45 @@ export type MissingToday = {
     on_vacation: User[]
     on_permission: User[]
 }
+
+export type AppNotification = {
+    id: number
+    kind: string
+    title: string
+    body: string
+    page: Page
+    created_at: string
+    read_at: string | null
+}
+
+export type Space = {
+    id: number
+    name: string
+    kind: string
+    capacity: number
+    location: string | null
+    description: string | null
+    equipment: string[]
+    open_time: string
+    close_time: string
+    open_days: number[]
+    is_active: boolean
+}
+
+export type Booking = {
+    id: number
+    space_id: number
+    space_name: string
+    user_id: number
+    user_name: string
+    title: string
+    notes: string | null
+    booking_date: string
+    start_time: string
+    end_time: string
+    status: 'confirmed' | 'cancelled'
+}
+
+export type NotificationsData = { items: AppNotification[]; unread: number }
 
 export type UserCreated = User & { temporary_password: string }

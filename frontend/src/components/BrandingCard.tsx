@@ -5,6 +5,7 @@ import { fileToLogo } from '../lib/image'
 import type { Branding } from '../lib/types'
 import { Logo } from './Logo'
 import { useToast } from '../components/Toast'
+import { Icon } from './Icon'
 
 export function BrandingCard({ token }: { token: string }) {
     const { branding, setBranding } = useBranding()
@@ -99,7 +100,7 @@ export function BrandingCard({ token }: { token: string }) {
                     <p className="eyebrow">ADMINISTRADOR</p>
                     <h2>Apariencia de la empresa</h2>
                 </div>
-                <span className="dashboard-card-icon">🎨</span>
+                <Icon name="palette" />
             </div>
 
             <form className="settings-form branding-form" onSubmit={save}>

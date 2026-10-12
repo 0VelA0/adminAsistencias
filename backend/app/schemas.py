@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator, model_validator
 
 def count_workdays(start: date, end: date) -> int:
     """Días laborables (lunes a viernes) entre dos fechas, ambas incluidas."""
@@ -371,6 +371,7 @@ class UserUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
+    hire_date: date | None = None
 
     @field_validator("role")
     @classmethod
@@ -410,5 +411,97 @@ class BrandingUpdate(BaseModel):
     company_name: str = Field(min_length=2, max_length=120)
     primary_color: str = Field(pattern=HEX_COLOR)
     sidebar_color: str = Field(pattern=HEX_COLOR)
+
+class NotificationOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    page: str
+    created_at: datetime
+    read_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NotificationsOut(BaseModel):
+    items: list[NotificationOut]
+    unread: int
+
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+def to_minutes(value: str) -> int:
+    hours, minutes = value.split(":")
+    return int(hours) * 60 + int(minutes)
+
+
+def to_hhmm(total: int) -> str:
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+class SpaceIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    kind: str = Field(min_length=2, max_length=60)
+    capacity: int = Field(ge=1, le=1000)
+    location: str | None = Field(default=None, max_length=150)
+    description: str | None = Field(default=None, max_length=500)
+    equipment: list[str] = Field(default_factory=list, max_length=20)
+    open_time: str = Field(pattern=HHMM)
+    close_time: str = Field(pattern=HHMM)
+    open_days: list[int] = Field(min_length=1)
+    is_active: bool = True
+
+    @field_validator("equipment")
+    @classmethod
+    def clean_equipment(cls, value: list[str]) -> list[str]:
+        items = [item.strip() for item in value if item.strip()]
+
+        if any(len(item) > 40 for item in items):
+            raise ValueError("Cada elemento del equipamiento admite hasta 40 caracteres.")
+
+        return items
+
+    @field_validator("open_days")
+    @classmethod
+    def valid_days(cls, value: list[int]) -> list[int]:
+        if any(day < 0 or day > 6 for day in value):
+            raise ValueError("Los días van de 0 (lunes) a 6 (domingo).")
+
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def valid_hours(self):
+        if to_minutes(self.close_time) <= to_minutes(self.open_time):
+            raise ValueError("La hora de cierre debe ser posterior a la de apertura.")
+
+        return self
+
+
+class SpaceOut(SpaceIn):
+    id: int
+
+
+class BookingIn(BaseModel):
+    space_id: int
+    booking_date: date
+    start_time: str = Field(pattern=HHMM)
+    end_time: str = Field(pattern=HHMM)
+    title: str = Field(min_length=2, max_length=150)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class BookingOut(BaseModel):
+    id: int
+    space_id: int
+    space_name: str
+    user_id: int
+    user_name: str
+    title: str
+    notes: str | None = None
+    booking_date: date
+    start_time: str
+    end_time: str
+    status: str
     
 TokenOut.model_rebuild()

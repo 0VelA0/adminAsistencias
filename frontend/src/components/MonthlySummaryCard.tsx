@@ -1,6 +1,7 @@
 import type { AttendanceRecord, VacationRequest,PermissionRequest } from '../lib/types'
 import { groupByDay } from '../lib/attendance'
 import { PermissionModal } from './PermissionModal';
+import {Icon} from './Icon'
 
 type Range = {start_date: string; end_date: string; status:string}
 const ymd = (d: Date) =>
@@ -63,7 +64,7 @@ export function MonthlySummaryCard({
                     <p className="eyebrow">RESUMEN</p>
                     <h2>Resumen mensual</h2>
                 </div>
-                <span className="dashboard-card-icon">◔</span>
+                <Icon name="pie" />
             </div>
 
             <div

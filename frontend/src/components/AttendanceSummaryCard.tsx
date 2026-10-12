@@ -1,4 +1,5 @@
 import type { summarize } from '../lib/history'
+import { Icon } from './Icon'
 
 type Summary = ReturnType<typeof summarize>
 
@@ -26,7 +27,7 @@ export function AttendanceSummaryCard({
                     <p className="eyebrow">AÑO ACTUAL</p>
                     <h2>Resumen histórico de asistencia</h2>
                 </div>
-                <span className="dashboard-card-icon">◔</span>
+                <Icon name="pie" />
             </div>
 
             <div className="donut" style={{ background }}>
