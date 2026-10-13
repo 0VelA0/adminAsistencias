@@ -71,7 +71,7 @@ export function PendingRequestsCard({
             )}
 
             <div className="dashboard-card-link">
-                Ver mis solicitudes →
+                Ver mis vacaciones →
             </div>
         </article>
     )
