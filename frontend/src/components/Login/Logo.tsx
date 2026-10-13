@@ -1,4 +1,4 @@
-import defaultLogo from '../assets/logo.png'
+import defaultLogo from '../../assets/logo.png'
 import { useBranding } from '../../lib/branding'
 
 export function Logo({ className }: { className?: string }) {
