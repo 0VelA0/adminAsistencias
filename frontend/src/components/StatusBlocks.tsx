@@ -1,5 +1,5 @@
 import type { AsyncState } from '../lib/useAsync'
-import { Logo } from './Logo'
+import { Logo } from './Login/Logo'
 
 export function LoadingBlock({ text = 'Cargando información…' }: { text?: string }) {
     return (

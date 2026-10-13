@@ -1,5 +1,5 @@
 import defaultLogo from '../assets/logo.png'
-import { useBranding } from '../lib/branding'
+import { useBranding } from '../../lib/branding'
 
 export function Logo({ className }: { className?: string }) {
     const { branding } = useBranding()

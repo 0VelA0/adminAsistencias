@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 import { DEFAULT_BRANDING, applyTheme, useBranding } from '../lib/branding'
 import { fileToLogo } from '../lib/image'
 import type { Branding } from '../lib/types'
-import { Logo } from './Logo'
+import { Logo } from './Login/Logo'
 import { useToast } from '../components/Toast'
 import { Icon } from './Icon'
 

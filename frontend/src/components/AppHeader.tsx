@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Page, User } from '../lib/types'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
-import { Logo } from './Logo'
+import { Logo } from './Login/Logo'
 import { NotificationBell } from './NotificationBell'
 
 export function AppHeader({

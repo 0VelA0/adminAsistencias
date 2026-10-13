@@ -13,7 +13,7 @@ export function VacationRequestsCard({
         <article className="dashboard-card permissions-card">
             <div className="dashboard-card-title">
                 <div>
-                    <p className="eyebrow">SOLICITUDES</p>
+                    <p className="eyebrow">VACACIONES</p>
                     <h2>Mis solicitudes de vacaciones</h2>
                 </div>
                 <Icon name="clipboard" />

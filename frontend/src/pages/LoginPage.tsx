@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import { useBranding } from '../lib/branding'
 import type { User } from '../lib/types'
-import { Logo } from '../components/Logo'
+import { Logo } from '../components/Login/Logo'
 
 export function LoginPage({
     onLogin,

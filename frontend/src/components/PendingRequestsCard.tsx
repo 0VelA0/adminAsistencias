@@ -21,11 +21,11 @@ export function PendingRequestsCard({
             <div className="dashboard-card-title">
                 <div>
                     <p className="eyebrow">
-                        SOLICITUDES
+                        VACACIONES
                     </p>
 
                     <h2>
-                        Solicitudes pendientes
+                        Vacaciones pendientes
                     </h2>
                 </div>
 

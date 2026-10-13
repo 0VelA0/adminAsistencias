@@ -4,7 +4,7 @@ import { useBranding } from '../lib/branding'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
-import { Logo } from './Logo'
+import { Logo } from './Login/Logo'
 
 type Item = { page: Page; icon: IconName; label: string }
 
