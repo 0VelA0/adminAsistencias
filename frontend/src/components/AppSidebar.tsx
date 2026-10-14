@@ -24,8 +24,8 @@ const ADMIN_ITEMS: Item[] = [
   { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
   { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
   { page: 'users', icon: 'users', label: 'Usuarios' },
-  { page: 'settings', icon: 'sliders', label: 'Configuración' },
   { page: 'admin-holidays', icon: 'calendar', label: 'Días festivos' },
+  { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
 const MOBILE_SLOTS = 5

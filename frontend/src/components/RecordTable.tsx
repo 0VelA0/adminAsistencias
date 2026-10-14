@@ -29,7 +29,7 @@ export function RecordTable({
 }: {
     records: Row[]
     admin?: boolean
-    onEdit: (record: Row) => void
+    onEdit?: (record: Row) => void
 }) {
     if (!records.length) {
         return <p className="empty">Aún no hay registros.</p>
@@ -48,7 +48,7 @@ export function RecordTable({
                             <th>Estado</th>
                             <th>Origen</th>
                             <th>Nota</th>
-                            {onEdit! && <th>Acciones</th>}
+                            {onEdit && <th>Acciones</th>}
                         </tr>
                     </thead>
 
