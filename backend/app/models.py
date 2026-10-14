@@ -374,3 +374,10 @@ class SpaceBooking(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+
+class Holiday(Base):
+    __tablename__ = "holidays"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    holiday_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))

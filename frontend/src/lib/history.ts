@@ -16,6 +16,7 @@ type Range = { start_date: string; end_date: string; status: string }
 export function classifyDays(
     records: AttendanceRecord[],
     ranges: Range[],
+    holidays: Set<string>,
     now = new Date()
 ): ClassifiedDay[] {
     const rows = groupByDay(records).filter(r =>
@@ -50,7 +51,7 @@ export function classifyDays(
         }
 
         const weekday = d.getDay()
-        if (weekday === 0 || weekday === 6 || key === today) continue
+        if (weekday === 0 || weekday === 6 || key === today || holidays.has(key)) continue
 
         const covered = approved.some(
             r =>

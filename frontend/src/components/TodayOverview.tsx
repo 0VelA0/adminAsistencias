@@ -56,7 +56,9 @@ export function TodayOverview({ state }: { state: AsyncState<TodayOverviewData> 
                         />
 
                         {!data.is_workday ? (
-                            <p className="pending-request-empty">Hoy no es día laborable.</p>
+                            <p className="pending-request-empty">
+                                {data.holiday_name ? `Hoy es festivo: ${data.holiday_name}.` : 'Hoy no es día laborable.'}
+                            </p>
                         ) : (
                             <>
                                 {!data.limit_passed && (

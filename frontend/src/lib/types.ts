@@ -21,6 +21,7 @@ export type AttendanceRecord = {
 }
 
 export type AdminRecord = AttendanceRecord & {
+    user_id: number
     user_name: string
     user_email: string
 }
@@ -114,6 +115,7 @@ export type TodayOverview = {
     missing: User[]
     on_vacation: TodayAbsence[]
     on_permission: TodayAbsence[]
+    holiday_name: string | null
 }
 
 export type Page =
@@ -128,6 +130,7 @@ export type Page =
     | 'admin-attendance'
     | 'admin-spaces'
     | 'spaces'
+    | 'admin-holidays'
 
 export type Branding = {
     company_name: string
@@ -187,3 +190,5 @@ export type Booking = {
 export type NotificationsData = { items: AppNotification[]; unread: number }
 
 export type UserCreated = User & { temporary_password: string }
+
+export type Holiday = { id: number; holiday_date: string; name: string }

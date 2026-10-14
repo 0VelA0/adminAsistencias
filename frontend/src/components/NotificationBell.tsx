@@ -7,9 +7,11 @@ import type { IconName } from './Icon'
 
 const KIND_ICON: Record<string, IconName> = {
     missing_exit: 'alert',
+    attendance_fix: 'clock',
     vacation: 'sun',
     permission: 'file',
     booking: 'building',
+    weekly: 'trend',
 }
 
 function timeAgo(value: string) {

@@ -10,6 +10,7 @@ import { useAsync } from '../lib/useAsync'
 import { StateView } from '../components/StatusBlocks'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
+import { DeleteUserModal } from '../components/DeleteUserModal'
 
 type Credentials = {
     title: string
@@ -35,6 +36,7 @@ export function UsersPage({
     const [error, setError] = useState('')
     const [editing, setEditing] = useState<User | null>(null)
     const toast = useToast()
+    const [deleting, setDeleting] = useState<User | null>(null)
 
     const load = list.reload
 
@@ -263,6 +265,10 @@ export function UsersPage({
                                                                     >
                                                                         {user.is_active ? 'Desactivar' : 'Activar'}
                                                                     </button>
+
+                                                                    <button type="button" className="danger compact" disabled={busyId === user.id} onClick={() => setDeleting(user)}>
+                                                                        Eliminar
+                                                                    </button>
                                                                 </div>
                                                             )}
                                                         </td>
@@ -289,6 +295,7 @@ export function UsersPage({
             {credentials && (
                 <CredentialsModal {...credentials} onClose={() => setCredentials(null)} />
             )}
+            
             {editing && (
                 <EditUserModal
                     token={token}
@@ -296,6 +303,10 @@ export function UsersPage({
                     onClose={() => setEditing(null)}
                     onSaved={handleSaved}
                 />
+            )}
+
+            {deleting && (
+                <DeleteUserModal token={token} user={deleting} onClose={() => setDeleting(null)} onDeleted={load} />
             )}
         </div>
     )

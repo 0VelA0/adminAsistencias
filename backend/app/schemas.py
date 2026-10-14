@@ -93,19 +93,11 @@ class AttendanceAdminOut(AttendanceOut):
 
 class ManualAttendanceInput(BaseModel):
     user_id: int
-
     kind: str
-
     work_date: date
-
     recorded_at: datetime
-
-    status: str = "normal"
-
-    note: str | None = Field(
-        default=None,
-        max_length=500,
-    )
+    status: str | None = None  # None = calcular según el horario
+    note: str | None = Field(default=None, max_length=500)
 
     @field_validator("kind")
     @classmethod
@@ -116,10 +108,29 @@ class ManualAttendanceInput(BaseModel):
 
     @field_validator("status")
     @classmethod
-    def validate_status(cls, value: str) -> str:
-        if value not in {"normal", "late"}:
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"normal", "late"}:
             raise ValueError("status debe ser normal o late.")
         return value
+
+
+class AttendanceEdit(BaseModel):
+    recorded_at: datetime | None = None
+    status: str | None = None
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"normal", "late"}:
+            raise ValueError("status debe ser normal o late.")
+        return value
+
+
+class AttendanceAdminOut(AttendanceOut):
+    user_id: int
+    user_name: str
+    user_email: EmailStr
 
 
 class AttendanceTodayOut(BaseModel):
@@ -213,6 +224,17 @@ class VacationReviewInput(BaseModel):
         max_length=500,
     )
 
+class HolidayIn(BaseModel):
+    holiday_date: date
+    name: str = Field(min_length=2, max_length=120)
+
+
+class HolidayOut(BaseModel):
+    id: int
+    holiday_date: date
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 class PermissionRequestCreate(BaseModel):
     kind: str
@@ -346,6 +368,7 @@ class TodayOverviewOut(BaseModel):
     missing: list[UserOut]
     on_vacation: list[TodayAbsenceOut]
     on_permission: list[TodayAbsenceOut]
+    holiday_name: str | None = None
 
 class UserCreatedOut(UserOut):
     temporary_password: str

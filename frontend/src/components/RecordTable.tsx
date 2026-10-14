@@ -25,9 +25,11 @@ const formatTime = (value: string) =>
 export function RecordTable({
     records,
     admin = false,
+    onEdit,
 }: {
     records: Row[]
     admin?: boolean
+    onEdit: (record: Row) => void
 }) {
     if (!records.length) {
         return <p className="empty">Aún no hay registros.</p>
@@ -46,6 +48,7 @@ export function RecordTable({
                             <th>Estado</th>
                             <th>Origen</th>
                             <th>Nota</th>
+                            {onEdit! && <th>Acciones</th>}
                         </tr>
                     </thead>
 
@@ -104,6 +107,14 @@ export function RecordTable({
                                 <td data-label="Nota">
                                     {record.note ?? '—'}
                                 </td>
+
+                                {onEdit && (
+                                    <td data-label="Acciones">
+                                        <button type="button" className="link" onClick={() => onEdit(record)}>
+                                            Corregir
+                                        </button>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>

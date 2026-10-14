@@ -16,7 +16,7 @@ import base64
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -59,7 +59,11 @@ from .schemas import (
     BookingIn,
     BookingOut,
     to_minutes,
-    to_hhmm
+    to_hhmm,
+    AttendanceEdit,
+    ManualAttendanceInput,
+    HolidayIn,
+    HolidayOut
 )
 
 
@@ -89,6 +93,14 @@ AVATAR_FORMATS = {
 }
 
 MAX_AVATAR_BYTES = 300_000
+
+PREF_BY_KIND = {
+    "missing_exit": "notify_attendance",
+    "attendance_fix": "notify_attendance",
+    "vacation": "notify_vacations",
+    "permission": "notify_permissions",
+    "weekly": "notify_weekly",
+}
 
 
 # =========================================================
@@ -185,6 +197,13 @@ def normalize_datetime(value: datetime) -> datetime:
 
     return value
 
+def as_utc(value: datetime) -> datetime:
+    """Compara fechas de la base de datos sin importar si traen zona horaria."""
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+
+    return value.astimezone(timezone.utc)
 
 def is_late_entry(recorded_at: datetime) -> bool:
     """
@@ -950,7 +969,7 @@ def manual_attendance(
             ),
         )
 
-    return create_attendance_record(
+    record = create_attendance_record(
         user=employee,
         db=db,
         kind=data.kind,
@@ -961,6 +980,22 @@ def manual_attendance(
         created_by_id=admin.id,
         note=data.note,
     )
+
+    create_notification(
+        db,
+        employee.id,
+        "attendance_fix",
+        "Se registró una asistencia a tu nombre",
+        (
+            f"Un administrador registró tu "
+            f"{'entrada' if data.kind == 'entry' else 'salida'} del {data.work_date:%d/%m/%Y}."
+        ),
+        "attendance",
+        f"manual-{record.id}",
+    )
+    db.commit()
+
+    return record
 
 @app.post(
     "/attendance/{kind}",
@@ -1072,6 +1107,7 @@ def list_all_attendance(
         result.append(
             AttendanceAdminOut(
                 id=record.id,
+                user_id=record.user_id,
                 kind=record.kind,
                 work_date=record.work_date,
                 recorded_at=record.recorded_at,
@@ -1099,7 +1135,8 @@ def today_overview(
 
     now_local = get_local_now()
     today = now_local.date()
-    is_workday = today.weekday() < 5
+    holiday = db.scalar(select(Holiday).where(Holiday.holiday_date == today))
+    is_workday = today.weekday() < 5 and holiday is None
 
     hours, minutes = map(
         int,
@@ -1209,7 +1246,129 @@ def today_overview(
         missing=missing,
         on_vacation=on_vacation,
         on_permission=on_permission,
+        holiday_name=holiday.name if holiday else None,
     )
+
+@app.patch(
+    "/attendance/{record_id}",
+    response_model=AttendanceOut,
+)
+def edit_attendance(
+    record_id: int,
+    data: AttendanceEdit,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    record = db.get(AttendanceRecord, record_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro no encontrado.")
+
+    time_changed = False
+
+    if data.recorded_at is not None:
+        new_local = normalize_datetime(data.recorded_at)
+
+        if get_work_date(new_local) != record.work_date:
+            raise HTTPException(
+                status_code=400,
+                detail="La hora debe corresponder al mismo día del registro.",
+            )
+
+        other = db.scalar(
+            select(AttendanceRecord).where(
+                AttendanceRecord.user_id == record.user_id,
+                AttendanceRecord.work_date == record.work_date,
+                AttendanceRecord.kind == ("exit" if record.kind == "entry" else "entry"),
+            )
+        )
+
+        new_utc = new_local.astimezone(timezone.utc)
+
+        if other:
+            if record.kind == "entry" and new_utc >= as_utc(other.recorded_at):
+                raise HTTPException(status_code=400, detail="La entrada debe ser anterior a la salida.")
+
+            if record.kind == "exit" and new_utc <= as_utc(other.recorded_at):
+                raise HTTPException(status_code=400, detail="La salida debe ser posterior a la entrada.")
+
+        record.recorded_at = new_utc
+        time_changed = True
+
+        if record.kind == "entry" and data.status is None:
+            record.status = "late" if is_late_entry(new_local) else "normal"
+
+    if data.status is not None and record.kind == "entry":
+        record.status = data.status
+
+    if data.note is not None:
+        record.note = data.note.strip() or None
+
+    record.source = "admin"
+    record.created_by_id = admin.id
+
+    create_notification(
+        db,
+        record.user_id,
+        "attendance_fix",
+        "Se corrigió un registro de asistencia",
+        (
+            f"Un administrador actualizó tu "
+            f"{'entrada' if record.kind == 'entry' else 'salida'} del {record.work_date:%d/%m/%Y}."
+        ),
+        "attendance",
+        f"fix-{record.id}-{int(datetime.now(timezone.utc).timestamp())}",
+    )
+
+    db.commit()
+    db.refresh(record)
+
+    return record
+
+
+@app.delete("/attendance/{record_id}")
+def delete_attendance(
+    record_id: int,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    record = db.get(AttendanceRecord, record_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro no encontrado.")
+
+    if record.kind == "entry":
+        has_exit = db.scalar(
+            select(AttendanceRecord.id).where(
+                AttendanceRecord.user_id == record.user_id,
+                AttendanceRecord.work_date == record.work_date,
+                AttendanceRecord.kind == "exit",
+            )
+        )
+
+        if has_exit:
+            raise HTTPException(
+                status_code=409,
+                detail="Elimina primero la salida de ese día.",
+            )
+
+    create_notification(
+        db,
+        record.user_id,
+        "attendance_fix",
+        "Se eliminó un registro de asistencia",
+        (
+            f"Un administrador eliminó tu "
+            f"{'entrada' if record.kind == 'entry' else 'salida'} del {record.work_date:%d/%m/%Y}."
+        ),
+        "attendance",
+        f"delete-{record.id}-{int(datetime.now(timezone.utc).timestamp())}",
+    )
+
+    db.delete(record)
+    db.commit()
+
+    return {"ok": True}
 
 
 # =========================================================
@@ -2572,6 +2731,107 @@ def sync_attendance_notifications(
     db.commit()
 
 
+def sync_weekly_summary(
+    db: Session,
+    user: User,
+    prefs: UserPreferences,
+) -> None:
+    """Crea el resumen de la semana anterior (lunes a domingo), una sola vez."""
+
+    if not prefs.notify_weekly or user.role != "employee":
+        return
+
+    today = get_work_date()
+    monday = today - timedelta(days=today.weekday() + 7)
+    sunday = monday + timedelta(days=6)
+    key = f"weekly-{monday.isoformat()}"
+
+    already = db.scalar(
+        select(Notification.id).where(
+            Notification.user_id == user.id,
+            Notification.dedupe_key == key,
+        )
+    )
+
+    if already or (user.hire_date and user.hire_date > sunday):
+        return
+
+    by_date: dict[date, dict[str, AttendanceRecord]] = {}
+
+    for record in db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.user_id == user.id,
+            AttendanceRecord.work_date >= monday,
+            AttendanceRecord.work_date <= sunday,
+        )
+    ).all():
+        by_date.setdefault(record.work_date, {})[record.kind] = record
+
+    holidays = set(
+        db.scalars(
+            select(Holiday.holiday_date).where(
+                Holiday.holiday_date >= monday,
+                Holiday.holiday_date <= sunday,
+            )
+        ).all()
+    )
+
+    away = [
+        (item.start_date, item.end_date)
+        for model in (VacationRequest, PermissionRequest)
+        for item in db.scalars(
+            select(model).where(
+                model.user_id == user.id,
+                model.status == "approved",
+                model.start_date <= sunday,
+                model.end_date >= monday,
+            )
+        ).all()
+    ]
+
+    punctual = late = absent = 0
+    seconds = 0.0
+
+    for offset in range(7):
+        day = monday + timedelta(days=offset)
+        records = by_date.get(day)
+
+        if records and "entry" in records:
+            if records["entry"].status == "late":
+                late += 1
+            else:
+                punctual += 1
+
+            if "exit" in records:
+                seconds += (
+                    as_utc(records["exit"].recorded_at)
+                    - as_utc(records["entry"].recorded_at)
+                ).total_seconds()
+
+        elif (
+            day.weekday() < 5
+            and day not in holidays
+            and not any(start <= day <= end for start, end in away)
+            and (not user.hire_date or day >= user.hire_date)
+        ):
+            absent += 1
+
+    if punctual + late + absent == 0:
+        return
+
+    create_notification(
+        db,
+        user.id,
+        "weekly",
+        "Resumen de tu semana",
+        (
+            f"Del {monday:%d/%m} al {sunday:%d/%m}: {punctual} puntuales, "
+            f"{late} con retraso, {absent} faltas y {seconds / 3600:.1f} h trabajadas."
+        ),
+        "history",
+        key,
+    )
+
 @app.get(
     "/notifications",
     response_model=NotificationsOut,
@@ -2585,6 +2845,8 @@ def list_notifications(
 
     try:
         sync_attendance_notifications(db, user, prefs)
+        sync_weekly_summary(db, user, prefs)
+        db.commit()
     except Exception:
         db.rollback()
 
@@ -2947,6 +3209,147 @@ def cancel_booking(
     db.refresh(booking)
 
     return booking_to_out(booking, space.name, owner.full_name)
+
+def purge_user(db: Session, user: User) -> None:
+    uid = user.id
+
+    # Lo que este usuario hizo sobre otros se conserva, sin su nombre
+    db.execute(update(AttendanceRecord).where(AttendanceRecord.created_by_id == uid).values(created_by_id=None))
+    db.execute(update(VacationRequest).where(VacationRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
+    db.execute(update(PermissionRequest).where(PermissionRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
+    db.execute(delete(QrSession).where(QrSession.created_by_id == uid))
+
+    # Los datos propios del usuario se eliminan
+    for model in (
+        AttendanceRecord,
+        VacationRequest,
+        PermissionRequest,
+        Notification,
+        UserPreferences,
+        SpaceBooking,
+    ):
+        db.execute(delete(model).where(model.user_id == uid))
+
+    db.delete(user)
+
+
+@app.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    confirm: str,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    if target.id == admin.id:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta.")
+
+    if confirm.strip().lower() != target.email.lower():
+        raise HTTPException(status_code=400, detail="El correo de confirmación no coincide.")
+
+    purge_user(db, target)
+    db.commit()
+
+    return {"ok": True}
+
+def nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """n-ésimo día de la semana (lunes = 0) de un mes."""
+
+    first = date(year, month, 1)
+    return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
+
+
+def statutory_holidays(year: int) -> list[tuple[date, str]]:
+    items = [
+        (date(year, 1, 1), "Año Nuevo"),
+        (nth_weekday(year, 2, 0, 1), "Día de la Constitución"),
+        (nth_weekday(year, 3, 0, 3), "Natalicio de Benito Juárez"),
+        (date(year, 5, 1), "Día del Trabajo"),
+        (date(year, 9, 16), "Día de la Independencia"),
+        (nth_weekday(year, 11, 0, 3), "Día de la Revolución"),
+        (date(year, 12, 25), "Navidad"),
+    ]
+
+    if (year - 1994) % 6 == 0:
+        items.append((date(year, 10, 1), "Transmisión del Poder Ejecutivo Federal"))
+
+    return sorted(items)
+
+
+@app.get("/holidays", response_model=list[HolidayOut])
+def list_holidays(
+    _: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    return db.scalars(select(Holiday).order_by(Holiday.holiday_date)).all()
+
+
+@app.post("/holidays", response_model=HolidayOut)
+def create_holiday(
+    data: HolidayIn,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    if db.scalar(select(Holiday.id).where(Holiday.holiday_date == data.holiday_date)):
+        raise HTTPException(status_code=409, detail="Ya existe un festivo en esa fecha.")
+
+    holiday = Holiday(holiday_date=data.holiday_date, name=data.name.strip())
+    db.add(holiday)
+    db.commit()
+    db.refresh(holiday)
+
+    return holiday
+
+
+@app.post("/holidays/statutory")
+def import_statutory_holidays(
+    year: int,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    if not 2000 <= year <= 2100:
+        raise HTTPException(status_code=400, detail="Año fuera de rango.")
+
+    existing = set(
+        db.scalars(
+            select(Holiday.holiday_date).where(
+                Holiday.holiday_date >= date(year, 1, 1),
+                Holiday.holiday_date <= date(year, 12, 31),
+            )
+        ).all()
+    )
+
+    created = 0
+
+    for day, name in statutory_holidays(year):
+        if day not in existing:
+            db.add(Holiday(holiday_date=day, name=name))
+            created += 1
+
+    db.commit()
+
+    return {"created": created}
+
+
+@app.delete("/holidays/{holiday_id}")
+def delete_holiday(
+    holiday_id: int,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    holiday = db.get(Holiday, holiday_id)
+
+    if not holiday:
+        raise HTTPException(status_code=404, detail="Festivo no encontrado.")
+
+    db.delete(holiday)
+    db.commit()
+
+    return {"ok": True}
 
 # =========================================================
 # FRONTEND ESTÁTICO

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
 import type { Page, User } from '../lib/types'
 import { useBranding } from '../lib/branding'
 import { Avatar } from './Avatar'
@@ -24,9 +25,12 @@ const ADMIN_ITEMS: Item[] = [
   { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
   { page: 'users', icon: 'users', label: 'Usuarios' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
+  { page: 'admin-holidays', icon: 'calendar', label: 'Días festivos' },
 ]
 
 const MOBILE_SLOTS = 5
+
+const MIN_ITEM_WIDTH = 68
 
 export function AppSidebar({
   user,
@@ -46,10 +50,30 @@ export function AppSidebar({
   const { branding } = useBranding()
   const [moreOpen, setMoreOpen] = useState(false)
 
+  const navRef = useRef<HTMLElement>(null)
   const items = adminView ? ADMIN_ITEMS : EMPLOYEE_ITEMS
-  const needsMore = items.length > MOBILE_SLOTS
-  const extraStart = MOBILE_SLOTS - 1
-  const extras = needsMore ? items.slice(extraStart) : []
+  const [capacity, setCapacity] = useState(items.length)
+
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+
+    const measure = () => {
+      const isBar = window.matchMedia('(max-width: 760px)').matches
+      setCapacity(isBar ? Math.max(3, Math.floor(nav.clientWidth / MIN_ITEM_WIDTH)) : items.length)
+    }
+
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(nav)
+
+    return () => observer.disconnect()
+  }, [items.length])
+
+  const needsMore = items.length > capacity
+  const visible = needsMore ? items.slice(0, capacity - 1) : items
+  const extras = needsMore ? items.slice(capacity - 1) : []
 
   const go = (page: Page) => {
     setMoreOpen(false)
@@ -67,13 +91,11 @@ export function AppSidebar({
         </div>
       </div>
 
-      <nav className="sidebar-nav">
-        {items.map((item, index) => (
+      <nav className="sidebar-nav" ref={navRef}>
+        {visible.map(item => (
           <button
             key={item.page}
-            className={`${activePage === item.page ? 'active' : ''} ${
-              needsMore && index >= extraStart ? 'nav-extra' : ''
-            }`}
+            className={activePage === item.page ? 'active' : ''}
             onClick={() => go(item.page)}
           >
             <span className="nav-icon">
@@ -85,7 +107,7 @@ export function AppSidebar({
 
         {needsMore && (
           <button
-            className={`nav-more ${extras.some(i => i.page === activePage) ? 'active' : ''}`}
+            className={extras.some(i => i.page === activePage) ? 'active' : ''}
             onClick={() => setMoreOpen(open => !open)}
           >
             <span className="nav-icon">

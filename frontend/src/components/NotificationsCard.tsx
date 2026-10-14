@@ -12,7 +12,7 @@ const OPTIONS: { key: keyof NotificationSettings; label: string; hint: string }[
     { key: 'notify_weekly', label: 'Resumen semanal', hint: 'Próximamente' },
 ]
 
-export function NotificationsCard({ token, initial }: { token: string; initial: NotificationSettings }) {
+export function NotificationsCard({ token, initial, isAdmin }: { token: string; initial: NotificationSettings; isAdmin: boolean }) {
     const toast = useToast()
     const [values, setValues] = useState(initial)
     const [saving, setSaving] = useState(false)
@@ -36,6 +36,14 @@ export function NotificationsCard({ token, initial }: { token: string; initial: 
         }
     }
 
+    const OPTIONS = (isAdmin: boolean) => [
+        { key: 'notify_attendance', label: 'Avisos de asistencia', hint: 'Salida sin registrar y correcciones de un administrador' },
+        { key: 'notify_vacations', label: 'Vacaciones', hint: isAdmin ? 'Respuestas y nuevas solicitudes del equipo' : 'Respuestas a tus solicitudes' },
+        { key: 'notify_permissions', label: 'Permisos', hint: isAdmin ? 'Respuestas y nuevas solicitudes del equipo' : 'Respuestas a tus solicitudes' },
+        { key: 'notify_company', label: 'Novedades de la empresa', hint: 'Comunicados y reuniones (próximamente)' },
+        { key: 'notify_weekly', label: 'Resumen semanal', hint: 'Cada lunes, el resumen de tu semana' },
+    ] as const satisfies readonly { key: keyof NotificationSettings; label: string; hint: string }[]
+
     return (
         <article className="dashboard-card">
             <div className="dashboard-card-title">
@@ -49,7 +57,7 @@ export function NotificationsCard({ token, initial }: { token: string; initial: 
             </div>
 
             <div>
-                {OPTIONS.map(option => (
+                {OPTIONS(isAdmin).map(option => (
                     <div className="switch-row" key={option.key}>
                         <div className="switch-text">
                             <span>{option.label}</span>

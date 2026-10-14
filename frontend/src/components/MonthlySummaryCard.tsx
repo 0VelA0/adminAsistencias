@@ -9,7 +9,7 @@ const ymd = (d: Date) =>
         d.getDate()
     ).padStart(2, '0')}`
 
-function workdaysSoFar(ranges: Range[]) {
+function workdaysSoFar(ranges: Range[], holidays: Set<string>) {
     const now = new Date()
     const approved = ranges.filter(r => r.status === 'approved')
     let count = 0
@@ -20,6 +20,7 @@ function workdaysSoFar(ranges: Range[]) {
         if (weekday === 0 || weekday === 6) continue
 
         const key = ymd(date)
+        if (holidays.has(key)) continue
         const onVacation = approved.some(
             v =>
                 v.start_date.slice(0, 10) <= key &&
@@ -35,17 +36,19 @@ export function MonthlySummaryCard({
     records,
     vacationRequests,
     permissionRequests,
+    holidays,
     onRequestPermission
 }: {
     records: AttendanceRecord[]
     vacationRequests: VacationRequest[]
     permissionRequests: PermissionRequest[]
+    holidays: Set<string>
     onRequestPermission: () => void
 }) {
     const prefix = ymd(new Date()).slice(0, 7)
     const days = groupByDay(records).filter(d => d.date.startsWith(prefix))
 
-    const workdays = workdaysSoFar([...vacationRequests, ...permissionRequests])
+    const workdays = workdaysSoFar([...vacationRequests, ...permissionRequests], holidays)
 
     const punctual = days.filter(d => d.entry && d.status === 'normal').length
     const late = days.filter(d => d.status === 'late').length

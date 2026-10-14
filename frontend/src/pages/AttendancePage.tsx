@@ -20,6 +20,7 @@ export function AttendancePage({
     onTodayChange,
     vacationRequests,
     permissionRequests,
+    holidays,
     onPermissionsChange
 }: {
     token: string
@@ -29,6 +30,7 @@ export function AttendancePage({
     onTodayChange: (today: AttendanceToday) => void
     vacationRequests: VacationRequest[],
     permissionRequests: PermissionRequest[],
+    holidays: Set<string>,
     onPermissionsChange: () => Promise<void>
 }) {
     const station = new URLSearchParams(window.location.search).get('station')
@@ -79,6 +81,7 @@ export function AttendancePage({
                     vacationRequests={vacationRequests}
                     permissionRequests={permissionRequests}
                     onRequestPermission={() => setShowPermission(true)}
+                    holidays={holidays}
                 />
                 <PermissionsCard requests={permissionRequests}/>
 

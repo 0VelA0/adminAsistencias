@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrandingProvider } from './lib/branding'
 
@@ -10,7 +10,8 @@ import type {
     User,
     VacationRequest,
     PermissionRequest,
-    Page
+    Page,
+    Holiday
 } from './lib/types'
 
 import { AppHeader } from './components/AppHeader'
@@ -26,10 +27,10 @@ import { UsersPage } from './pages/UsersPage'
 import {ToastProvider} from './components/Toast'
 import { FullScreenStatus } from './components/StatusBlocks'
 import { useOnline } from './lib/useOnline'
-
 import './styles.css'
 import { SpacesAdminPage } from './pages/SpacesAdminPage'
 import { SpacesPage } from './pages/SpacesPage'
+import { HolidaysPage } from './pages/HolidaysPage'
 
 
 function App() {
@@ -187,6 +188,20 @@ function App() {
         setActivePage(page)
     }
 
+    const [holidays, setHolidays] = useState<Holiday[]>([])
+
+    const loadHolidays = () =>
+        api<Holiday[]>('/holidays', {}, token).then(setHolidays).catch(() => undefined)
+
+    useEffect(() => {
+        if (token) loadHolidays()
+    }, [token])
+
+    const holidayDates = useMemo(
+        () => new Set(holidays.map(h => h.holiday_date.slice(0, 10))),
+        [holidays]
+    )
+
 
     if (!token) {
         return (
@@ -254,6 +269,8 @@ function App() {
                             )}
                              
                             {activePage === 'admin-spaces' && <SpacesAdminPage token={token} user={user} />}
+
+                            {activePage === 'admin-holidays' && <HolidaysPage token={token} onChanged={loadHolidays} />}
                         </>
                 ) : (
                     <>
@@ -296,6 +313,7 @@ function App() {
                                 vacationRequests={vacationRequests}
                                 permissionRequests={permissionRequests}
                                 onPermissionsChange={loadPermissionRequests}
+                                holidays={holidayDates}
                             /> 
                         )}
                         {activePage === 'history' && (
@@ -303,6 +321,7 @@ function App() {
                                 records={records}
                                 vacationRequests={vacationRequests}
                                 permissionRequests={permissionRequests}
+                                holidays={holidayDates}
                             />
                         )}
                         {activePage === 'settings' &&(

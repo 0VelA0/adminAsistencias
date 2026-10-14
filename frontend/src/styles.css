@@ -205,6 +205,20 @@ img {
   width: auto;
 }
 
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.notice.warning {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.cap {
+  text-transform: capitalize;
+}
+
 /* ---------- 3. LAYOUT ---------- */
 
 .app-layout {
@@ -366,10 +380,6 @@ img {
 .sidebar-user span {
   font-size: 10px;
   color: var(--on-sidebar-muted);
-}
-
-.nav-more {
-  display: none;
 }
 
 .more-backdrop {
@@ -1790,7 +1800,7 @@ img {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 60;
+  z-index: 2000;
   display: grid;
   gap: 8px;
   max-width: 360px;
@@ -2075,6 +2085,24 @@ img {
   overflow: auto;
 }
 
+.holiday-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.holiday-form input {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.holiday-form input[type="text"],
+.holiday-form input:not([type]) {
+  flex: 1;
+  min-width: 180px;
+}
+
 /* ---------- 14. RESPONSIVE ---------- */
 
 @media (max-width: 1100px) {
@@ -2135,14 +2163,6 @@ img {
     min-width: 0;
     padding: 6px 2px;
     text-align: center;
-  }
-
-  .nav-extra {
-    display: none !important;
-  }
-
-  .nav-more {
-    display: flex;
   }
 
   .nav-icon {

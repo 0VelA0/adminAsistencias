@@ -44,7 +44,7 @@ export function SettingsPage({
                     <section className="settings-grid">
                         <ProfileCard token={token} user={user} profile={profile} onUserChange={onUserChange} />
                         <SecurityCard token={token} />
-                        <NotificationsCard token={token} initial={notifications} />
+                        <NotificationsCard isAdmin={user.role === 'admin'} token={token} initial={notifications} />
                         {user.role === 'admin' && <BrandingCard token={token} />}
                     </section>
                 )}
