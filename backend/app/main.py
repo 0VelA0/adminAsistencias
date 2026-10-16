@@ -21,10 +21,13 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 from pydantic import EmailStr, TypeAdapter
+from openpyxl.comments import Comment
+from openpyxl.styles import Border, Side
+from openpyxl.utils import get_column_letter
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -79,7 +82,12 @@ from .schemas import (
     ImportIn,
     ImportResult,
     ImportRowResult,
-    ImportCredential
+    ImportCredential,
+    IncidenceCodeIn,
+    IncidenceCodeOut,
+    ReportRequest,
+    ReportPersonOut,
+    ReportPreviewOut
 )
 
 
@@ -717,6 +725,295 @@ def ensure_user_columns() -> None:
             conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
 
 # =========================================================
+# REPORTES
+# =========================================================
+
+REPORT_KEYS = [
+    "attendance", "late", "absence", "vacation", "paid_leave",
+    "unpaid_leave", "holiday", "rest", "incomplete",
+]
+
+DEFAULT_CODES = {
+    "attendance": ("ASI", "Asistencia", False),
+    "late": ("RET", "Retardo", True),
+    "absence": ("FAL", "Falta injustificada", True),
+    "vacation": ("VAC", "Vacaciones", True),
+    "paid_leave": ("PCG", "Permiso con goce de sueldo", True),
+    "unpaid_leave": ("SGS", "Permiso sin goce de sueldo", True),
+    "holiday": ("FES", "Día festivo", False),
+    "rest": ("DES", "Día de descanso", False),
+    "incomplete": ("INC", "Registro incompleto (sin salida)", True),
+}
+
+CODE_COLORS = {
+    "attendance": "E7F5EB",
+    "late": "FFF1D6",
+    "absence": "FDE2DE",
+    "vacation": "DCEBFF",
+    "paid_leave": "ECE3FF",
+    "unpaid_leave": "FFE6D2",
+    "holiday": "E3E8F0",
+    "rest": "F1F3F6",
+    "incomplete": "FCE4EF",
+}
+
+WEEKDAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+THIN = Side(style="thin", color="DFE6EF")
+BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+
+
+def ensure_incidence_codes(db: Session) -> None:
+    existing = set(db.scalars(select(IncidenceCode.key)).all())
+
+    for key in REPORT_KEYS:
+        if key not in existing:
+            code, label, include = DEFAULT_CODES[key]
+            db.add(IncidenceCode(key=key, code=code, label=label, include_in_incidences=include))
+
+
+def load_codes(db: Session) -> list[IncidenceCodeOut]:
+    rows = {c.key: c for c in db.scalars(select(IncidenceCode)).all()}
+    result = []
+
+    for key in REPORT_KEYS:
+        code, label, include = DEFAULT_CODES[key]
+        row = rows.get(key)
+
+        result.append(
+            IncidenceCodeOut(
+                key=key,
+                code=row.code if row else code,
+                label=row.label if row else label,
+                include_in_incidences=row.include_in_incidences if row else include,
+                color=f"#{CODE_COLORS[key]}",
+            )
+        )
+
+    return result
+
+
+@dataclass
+class ReportDay:
+    user: User
+    day: date
+    key: str
+    entry: datetime | None = None
+    exit: datetime | None = None
+    hours: float = 0.0
+    late_minutes: int = 0
+    incomplete: bool = False
+    note: str | None = None
+
+
+def build_report_days(db: Session, data: ReportRequest):
+    """Clasifica cada día de cada empleado del periodo con una clave."""
+
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
+
+    query = select(User).where(User.role == "employee").order_by(User.full_name)
+    if data.user_id:
+        query = query.where(User.id == data.user_id)
+
+    users = [
+        u
+        for u in db.scalars(query).all()
+        if not data.department
+        or (profiles.get(u.id) and profiles[u.id].department == data.department)
+    ]
+
+    if not users:
+        return [], profiles, []
+
+    ids = [u.id for u in users]
+
+    attendance: dict[tuple[int, date], dict[str, AttendanceRecord]] = {}
+
+    for record in db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.user_id.in_(ids),
+            AttendanceRecord.work_date >= data.start,
+            AttendanceRecord.work_date <= data.end,
+        )
+    ).all():
+        attendance.setdefault((record.user_id, record.work_date), {})[record.kind] = record
+
+    def approved(model):
+        grouped: dict[int, list] = {}
+
+        for item in db.scalars(
+            select(model).where(
+                model.user_id.in_(ids),
+                model.status == "approved",
+                model.start_date <= data.end,
+                model.end_date >= data.start,
+            )
+        ).all():
+            grouped.setdefault(item.user_id, []).append(item)
+
+        return grouped
+
+    vacations = approved(VacationRequest)
+    permissions = approved(PermissionRequest)
+
+    holidays = {
+        h.holiday_date: h.name
+        for h in db.scalars(
+            select(Holiday).where(
+                Holiday.holiday_date >= data.start,
+                Holiday.holiday_date <= data.end,
+            )
+        ).all()
+    }
+
+    today = get_work_date()
+    total_days = (data.end - data.start).days + 1
+
+    included: list[User] = []
+    result: list[ReportDay] = []
+
+    for user in users:
+        schedule = schedule_from_profile(profiles.get(user.id))
+        user_days: list[ReportDay] = []
+        worked = False
+
+        for offset in range(total_days):
+            day = data.start + timedelta(days=offset)
+
+            if day > today or (user.hire_date and day < user.hire_date):
+                continue
+
+            records = attendance.get((user.id, day), {})
+            entry = records.get("entry")
+            exit_record = records.get("exit")
+
+            if entry:
+                worked = True
+                late = entry.status == "late"
+                local_entry = as_utc(entry.recorded_at).astimezone(LOCAL_TIMEZONE)
+
+                hours = 0.0
+                if exit_record:
+                    hours = round(
+                        (as_utc(exit_record.recorded_at) - as_utc(entry.recorded_at)).total_seconds() / 3600,
+                        2,
+                    )
+
+                notes = [n for n in (entry.note, exit_record.note if exit_record else None) if n]
+
+                user_days.append(
+                    ReportDay(
+                        user=user,
+                        day=day,
+                        key="late" if late else "attendance",
+                        entry=entry.recorded_at,
+                        exit=exit_record.recorded_at if exit_record else None,
+                        hours=hours,
+                        late_minutes=(
+                            max(0, local_entry.hour * 60 + local_entry.minute - schedule.start) if late else 0
+                        ),
+                        incomplete=exit_record is None and day < today,
+                        note="; ".join(notes) or None,
+                    )
+                )
+                continue
+
+            vacation = next((v for v in vacations.get(user.id, []) if v.start_date <= day <= v.end_date), None)
+            permission = next((p for p in permissions.get(user.id, []) if p.start_date <= day <= p.end_date), None)
+
+            if day in holidays:
+                key, note = "holiday", holidays[day]
+            elif day.weekday() not in schedule.days:
+                key, note = "rest", None
+            elif vacation:
+                key, note = "vacation", vacation.reason
+            elif permission:
+                key = "paid_leave" if permission.kind == "paid" else "unpaid_leave"
+                note = permission.reason
+            elif day == today:
+                continue  # el día en curso solo cuenta si ya hay registro
+            else:
+                key, note = "absence", None
+
+            user_days.append(ReportDay(user=user, day=day, key=key, note=note))
+
+        # Los inactivos solo aparecen si trabajaron en el periodo
+        if user.is_active or worked:
+            included.append(user)
+            result.extend(user_days)
+
+    return included, profiles, result
+
+
+def summarize_report(users: list[User], days: list[ReportDay]) -> dict[int, dict]:
+    stats = {
+        u.id: {"counts": {k: 0 for k in REPORT_KEYS}, "hours": 0.0, "late": 0, "workdays": 0}
+        for u in users
+    }
+
+    for item in days:
+        s = stats[item.user.id]
+        s["counts"][item.key] += 1
+
+        if item.incomplete:
+            s["counts"]["incomplete"] += 1
+
+        s["hours"] += item.hours
+        s["late"] += item.late_minutes
+
+        if item.key not in ("rest", "holiday"):
+            s["workdays"] += 1
+
+    return stats
+
+
+def employee_fields(user: User, profiles: dict) -> tuple[str, str, str]:
+    profile = profiles.get(user.id)
+
+    return (
+        (profile.employee_code if profile else None) or "",
+        (profile.department if profile else None) or "",
+        (profile.position if profile else None) or "",
+    )
+
+
+def local_hhmm(value: datetime | None) -> str:
+    return as_utc(value).astimezone(LOCAL_TIMEZONE).strftime("%H:%M") if value else ""
+
+
+def style_header(cell, fill_hex: str) -> None:
+    cell.font = Font(bold=True, color="FFFFFF")
+    cell.fill = PatternFill("solid", fgColor=fill_hex)
+    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    cell.border = BORDER
+
+
+def solid(hex_color: str) -> PatternFill:
+    return PatternFill("solid", fgColor=hex_color)
+
+
+def write_table(sheet, headers: list[str], rows: list[list], header_hex: str, widths: list[int]) -> None:
+    """Encabezado con color, bordes, filas alternadas, filtros y panel fijo."""
+
+    for col, title in enumerate(headers, start=1):
+        style_header(sheet.cell(row=1, column=col, value=title), header_hex)
+
+    for r, values in enumerate(rows, start=2):
+        for c, value in enumerate(values, start=1):
+            cell = sheet.cell(row=r, column=c, value=value)
+            cell.border = BORDER
+
+            if r % 2:
+                cell.fill = solid("F7F9FC")
+
+    for col, width in enumerate(widths, start=1):
+        sheet.column_dimensions[get_column_letter(col)].width = width
+
+    sheet.row_dimensions[1].height = 28
+    sheet.freeze_panes = "C2"
+    sheet.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(len(rows) + 1, 1)}"
+
+# =========================================================
 # STARTUP
 # =========================================================
 
@@ -791,6 +1088,7 @@ def startup():
                 )
 
                 db.add(employee)
+
 
         get_branding(db)
         db.commit()
@@ -3922,6 +4220,322 @@ def import_people(
         ) from exc
 
     return ImportResult(dry_run=False, **summary, credentials=credentials)
+
+@app.get("/reports/codes", response_model=list[IncidenceCodeOut])
+def list_incidence_codes(
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    return load_codes(db)
+
+
+@app.put("/reports/codes", response_model=list[IncidenceCodeOut])
+def update_incidence_codes(
+    data: list[IncidenceCodeIn],
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    if {item.key for item in data} - set(REPORT_KEYS):
+        raise HTTPException(status_code=400, detail="Hay una clave interna desconocida.")
+
+    codes = [item.code for item in data]
+
+    if len(codes) != len(set(codes)):
+        raise HTTPException(status_code=400, detail="Cada clave debe ser única.")
+
+    rows = {c.key: c for c in db.scalars(select(IncidenceCode)).all()}
+
+    for item in data:
+        row = rows.get(item.key)
+
+        if row is None:
+            row = IncidenceCode(key=item.key)
+            db.add(row)
+
+        row.code = item.code
+        row.label = item.label.strip()
+        row.include_in_incidences = item.include_in_incidences
+
+    db.commit()
+
+    return load_codes(db)
+
+
+@app.post("/reports/attendance/preview", response_model=ReportPreviewOut)
+def report_preview(
+    data: ReportRequest,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    users, profiles, days = build_report_days(db, data)
+    stats = summarize_report(users, days)
+
+    people = []
+
+    for user in users:
+        code, department, position = employee_fields(user, profiles)
+        s = stats[user.id]
+
+        people.append(
+            ReportPersonOut(
+                user_id=user.id,
+                employee_code=code or None,
+                full_name=user.full_name,
+                department=department or None,
+                position=position or None,
+                workdays=s["workdays"],
+                counts=s["counts"],
+                hours=round(s["hours"], 2),
+                late_minutes=s["late"],
+            )
+        )
+
+    return ReportPreviewOut(
+        start=data.start,
+        end=data.end,
+        codes=load_codes(db),
+        people=people,
+        totals={k: sum(p.counts[k] for p in people) for k in REPORT_KEYS},
+        hours=round(sum(p.hours for p in people), 2),
+        late_minutes=sum(p.late_minutes for p in people),
+    )
+
+
+@app.post("/reports/attendance/export")
+def report_export(
+    data: ReportRequest,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    users, profiles, days = build_report_days(db, data)
+    stats = summarize_report(users, days)
+    codes = {c.key: c for c in load_codes(db)}
+    branding = get_branding(db)
+    primary = branding.primary_color.lstrip("#").upper()
+
+    days.sort(key=lambda d: (d.user.full_name, d.day))
+    workbook = Workbook()
+
+    # ---------- 1. Resumen ----------
+    summary = workbook.active
+    summary.title = "Resumen"
+
+    summary["A1"] = branding.company_name
+    summary["A1"].font = Font(bold=True, size=16)
+    summary["A2"] = "Reporte de asistencia"
+    summary["A2"].font = Font(bold=True, size=13, color=primary)
+
+    filters = [f"Periodo: {data.start:%d/%m/%Y} al {data.end:%d/%m/%Y}"]
+    if data.department:
+        filters.append(f"Departamento: {data.department}")
+
+    summary["A3"] = " · ".join(filters)
+    summary["A4"] = f"Generado el {get_local_now():%d/%m/%Y a las %H:%M}"
+
+    for ref in ("A3", "A4"):
+        summary[ref].font = Font(color="65718A")
+
+    headers = [
+        "Código", "Empleado", "Departamento", "Puesto", "Días laborables",
+        *[codes[k].code for k in REPORT_KEYS],
+        "Horas trabajadas", "Minutos de retardo",
+    ]
+
+    top = 6
+
+    for col, title in enumerate(headers, start=1):
+        style_header(summary.cell(row=top, column=col, value=title), primary)
+
+    # Las columnas de claves llevan su color y su descripción como nota
+    for i, key in enumerate(REPORT_KEYS):
+        cell = summary.cell(row=top, column=6 + i)
+        cell.fill = solid(CODE_COLORS[key])
+        cell.font = Font(bold=True, color="172033")
+        cell.comment = Comment(codes[key].label, "Sistema")
+
+    row = top + 1
+    totals = [0.0] * (len(headers) - 4)
+
+    for index, user in enumerate(users):
+        code, department, position = employee_fields(user, profiles)
+        s = stats[user.id]
+
+        numbers = [s["workdays"], *[s["counts"][k] for k in REPORT_KEYS], round(s["hours"], 2), s["late"]]
+        totals = [a + b for a, b in zip(totals, numbers)]
+
+        for col, value in enumerate([code, user.full_name, department, position, *numbers], start=1):
+            cell = summary.cell(row=row, column=col, value=value)
+            cell.border = BORDER
+
+            if index % 2:
+                cell.fill = solid("F7F9FC")
+            if col >= 5:
+                cell.alignment = Alignment(horizontal="center")
+
+        summary.cell(row=row, column=len(headers) - 1).number_format = "0.00"
+        row += 1
+
+    summary.cell(row=row, column=2, value="Totales").font = Font(bold=True)
+
+    for offset, value in enumerate(totals):
+        cell = summary.cell(row=row, column=5 + offset, value=round(value, 2))
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = Border(top=Side(style="medium", color=primary))
+
+    summary.cell(row=row, column=len(headers) - 1).number_format = "0.00"
+
+    for col, width in enumerate([12, 30, 20, 22, 11] + [8] * len(REPORT_KEYS) + [12, 12], start=1):
+        summary.column_dimensions[get_column_letter(col)].width = width
+
+    summary.row_dimensions[top].height = 32
+    summary.freeze_panes = summary.cell(row=top + 1, column=3)
+    summary.auto_filter.ref = f"A{top}:{get_column_letter(len(headers))}{max(row - 1, top)}"
+    summary.page_setup.orientation = "landscape"
+    summary.sheet_properties.pageSetUpPr.fitToPage = True
+    summary.page_setup.fitToWidth = 1
+    summary.page_setup.fitToHeight = 0
+
+    # ---------- 2. Incidencias (lo que se captura en nómina) ----------
+    incidents = workbook.create_sheet("Incidencias")
+    incident_rows = []
+
+    for item in days:
+        code, _, _ = employee_fields(item.user, profiles)
+        info = codes[item.key]
+
+        if info.include_in_incidences and item.key != "incomplete":
+            incident_rows.append([
+                code, item.user.full_name, item.day, info.code, info.label,
+                1, item.late_minutes or None, item.note or "",
+            ])
+
+        if item.incomplete and codes["incomplete"].include_in_incidences:
+            incident_rows.append([
+                code, item.user.full_name, item.day, codes["incomplete"].code,
+                codes["incomplete"].label, 1, None, "Entrada sin salida registrada",
+            ])
+
+    write_table(
+        incidents,
+        ["Código empleado", "Empleado", "Fecha", "Clave", "Descripción", "Cantidad", "Minutos", "Observaciones"],
+        incident_rows,
+        primary,
+        [16, 30, 12, 9, 32, 10, 10, 40],
+    )
+
+    for r in range(2, len(incident_rows) + 2):
+        incidents.cell(row=r, column=3).number_format = "DD/MM/YYYY"
+        incidents.cell(row=r, column=4).font = Font(bold=True)
+
+    # ---------- 3. Detalle diario ----------
+    detail = workbook.create_sheet("Detalle diario")
+    detail_rows = []
+
+    for item in days:
+        code, department, _ = employee_fields(item.user, profiles)
+        info = codes[item.key]
+
+        detail_rows.append([
+            code, item.user.full_name, department, item.day, WEEKDAYS[item.day.weekday()],
+            info.code, info.label, local_hhmm(item.entry), local_hhmm(item.exit),
+            item.hours or None, item.late_minutes or None,
+            "Sí" if item.incomplete else "", item.note or "",
+        ])
+
+    write_table(
+        detail,
+        ["Código", "Empleado", "Departamento", "Fecha", "Día", "Clave", "Descripción",
+         "Entrada", "Salida", "Horas", "Retardo (min)", "Sin salida", "Observaciones"],
+        detail_rows,
+        primary,
+        [12, 30, 20, 12, 11, 8, 30, 9, 9, 8, 12, 10, 40],
+    )
+
+    for r, item in enumerate(days, start=2):
+        detail.cell(row=r, column=4).number_format = "DD/MM/YYYY"
+        detail.cell(row=r, column=10).number_format = "0.00"
+
+        key_cell = detail.cell(row=r, column=6)
+        key_cell.fill = solid(CODE_COLORS[item.key])
+        key_cell.font = Font(bold=True)
+        key_cell.alignment = Alignment(horizontal="center")
+
+    # ---------- 4. Calendario ----------
+    calendar = workbook.create_sheet("Calendario")
+    dates = [data.start + timedelta(days=i) for i in range((data.end - data.start).days + 1)]
+    by_day = {(item.user.id, item.day): item for item in days}
+
+    for col, title in ((1, "Código"), (2, "Empleado")):
+        style_header(calendar.cell(row=1, column=col, value=title), primary)
+        style_header(calendar.cell(row=2, column=col), primary)
+
+    for i, day in enumerate(dates):
+        col = 3 + i
+        style_header(calendar.cell(row=1, column=col, value=day.strftime("%d/%m")), primary)
+        style_header(calendar.cell(row=2, column=col, value="LMXJVSD"[day.weekday()]), primary)
+        calendar.column_dimensions[get_column_letter(col)].width = 6.5
+
+    for r, user in enumerate(users, start=3):
+        code, _, _ = employee_fields(user, profiles)
+        calendar.cell(row=r, column=1, value=code).border = BORDER
+        calendar.cell(row=r, column=2, value=user.full_name).border = BORDER
+
+        for i, day in enumerate(dates):
+            item = by_day.get((user.id, day))
+            cell = calendar.cell(row=r, column=3 + i, value=codes[item.key].code if item else "")
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = BORDER
+
+            if item:
+                cell.fill = solid(CODE_COLORS[item.key])
+                cell.font = Font(bold=True, color="B42318" if item.incomplete else "172033")
+
+                if item.incomplete:
+                    cell.comment = Comment("Entrada sin salida registrada", "Sistema")
+
+    legend = len(users) + 5
+    calendar.cell(row=legend, column=2, value="Leyenda").font = Font(bold=True)
+
+    for i, key in enumerate(REPORT_KEYS, start=1):
+        swatch = calendar.cell(row=legend + i, column=1, value=codes[key].code)
+        swatch.fill = solid(CODE_COLORS[key])
+        swatch.font = Font(bold=True)
+        swatch.alignment = Alignment(horizontal="center")
+        calendar.cell(row=legend + i, column=2, value=codes[key].label)
+
+    calendar.column_dimensions["A"].width = 12
+    calendar.column_dimensions["B"].width = 30
+    calendar.freeze_panes = "C3"
+
+    # ---------- 5. Claves ----------
+    legend_sheet = workbook.create_sheet("Claves")
+    all_totals = {k: sum(stats[u.id]["counts"][k] for u in users) for k in REPORT_KEYS}
+
+    write_table(
+        legend_sheet,
+        ["Clave", "Descripción", "Se reporta como incidencia", "Total en el periodo"],
+        [
+            [codes[k].code, codes[k].label, "Sí" if codes[k].include_in_incidences else "No", all_totals[k]]
+            for k in REPORT_KEYS
+        ],
+        primary,
+        [10, 36, 26, 20],
+    )
+
+    for r, key in enumerate(REPORT_KEYS, start=2):
+        legend_sheet.cell(row=r, column=1).fill = solid(CODE_COLORS[key])
+        legend_sheet.cell(row=r, column=1).font = Font(bold=True)
+
+    legend_sheet.freeze_panes = "A2"
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+
+    return {
+        "filename": f"asistencia_{data.start:%Y%m%d}_{data.end:%Y%m%d}.xlsx",
+        "content": base64.b64encode(buffer.getvalue()).decode(),
+    }
 
 # =========================================================
 # FRONTEND ESTÁTICO

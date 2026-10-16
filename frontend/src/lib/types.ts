@@ -131,6 +131,7 @@ export type Page =
     | 'spaces'
     | 'admin-holidays'
     | 'team'
+    | 'admin-reports'
 
 export type Branding = {
     company_name: string
@@ -232,4 +233,34 @@ export type ImportResult = {
     updated: number
     failed: number
     credentials: { full_name: string; email: string; temporary_password: string }[]
+}
+
+export type IncidenceCode = {
+    key: string
+    code: string
+    label: string
+    include_in_incidences: boolean
+    color: string
+}
+
+export type ReportPerson = {
+    user_id: number
+    employee_code: string | null
+    full_name: string
+    department: string | null
+    position: string | null
+    workdays: number
+    counts: Record<string, number>
+    hours: number
+    late_minutes: number
+}
+
+export type ReportPreview = {
+    start: string
+    end: string
+    codes: IncidenceCode[]
+    people: ReportPerson[]
+    totals: Record<string, number>
+    hours: number
+    late_minutes: number
 }

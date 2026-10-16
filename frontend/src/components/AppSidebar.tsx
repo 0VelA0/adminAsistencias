@@ -27,6 +27,7 @@ const ADMIN_ITEMS: Item[] = [
   { page: 'users', icon: 'users', label: 'Usuarios' },
   { page: 'admin-holidays', icon: 'calendar', label: 'Días festivos' },
   { page: 'team', icon: 'org', label: 'Equipo' },
+  { page: 'admin-reports', icon: 'download', label: 'Reportes' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 

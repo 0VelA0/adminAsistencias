@@ -33,6 +33,7 @@ import { SpacesAdminPage } from './pages/SpacesAdminPage'
 import { SpacesPage } from './pages/SpacesPage'
 import { HolidaysPage } from './pages/HolidaysPage'
 import { TeamPage } from './pages/TeamPage'
+import { ReportsPage } from './pages/ReportsPage'
 
 
 function App() {
@@ -283,6 +284,8 @@ function App() {
                             {activePage === 'admin-holidays' && <HolidaysPage token={token} onChanged={loadHolidays} />}
 
                             {activePage === 'team' && <TeamPage token={token} user={user} />}
+
+                            {activePage === 'admin-reports' && <ReportsPage token={token} />}
                         </>
                 ) : (
                     <>

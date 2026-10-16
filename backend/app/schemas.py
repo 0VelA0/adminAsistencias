@@ -2,6 +2,8 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator, model_validator
 
+import re
+
 def count_workdays(start: date, end: date) -> int:
     """Días laborables (lunes a viernes) entre dos fechas, ambas incluidas."""
 
@@ -605,5 +607,68 @@ class BookingOut(BaseModel):
     start_time: str
     end_time: str
     status: str
+
+class IncidenceCodeOut(BaseModel):
+    key: str
+    code: str
+    label: str
+    include_in_incidences: bool
+    color: str
+
+
+class IncidenceCodeIn(BaseModel):
+    key: str
+    code: str = Field(min_length=1, max_length=10)
+    label: str = Field(min_length=2, max_length=80)
+    include_in_incidences: bool
+
+    @field_validator("code")
+    @classmethod
+    def clean_code(cls, value: str) -> str:
+        value = value.strip().upper()
+
+        if not re.fullmatch(r"[A-Z0-9]{1,10}", value):
+            raise ValueError("La clave solo admite letras y números, sin espacios (máximo 10).")
+
+        return value
+
+
+class ReportRequest(BaseModel):
+    start: date
+    end: date
+    department: str | None = None
+    user_id: int | None = None
+
+    @model_validator(mode="after")
+    def valid_range(self):
+        if self.end < self.start:
+            raise ValueError("La fecha final debe ser posterior a la inicial.")
+
+        if (self.end - self.start).days > 366:
+            raise ValueError("El periodo máximo es de un año.")
+
+        return self
+
+
+class ReportPersonOut(BaseModel):
+    user_id: int
+    employee_code: str | None = None
+    full_name: str
+    department: str | None = None
+    position: str | None = None
+    workdays: int
+    counts: dict[str, int]
+    hours: float
+    late_minutes: int
+
+
+class ReportPreviewOut(BaseModel):
+    start: date
+    end: date
+    codes: list[IncidenceCodeOut]
+    people: list[ReportPersonOut]
+    totals: dict[str, int]
+    hours: float
+    late_minutes: int
     
 TokenOut.model_rebuild()

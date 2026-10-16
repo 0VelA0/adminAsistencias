@@ -397,3 +397,12 @@ class EmployeeProfile(Base):
     work_end_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tolerance_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_days: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+class IncidenceCode(Base):
+    __tablename__ = "incidence_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(30), unique=True)  # clave interna fija
+    code: Mapped[str] = mapped_column(String(10))               # la que ve nómina
+    label: Mapped[str] = mapped_column(String(80))
+    include_in_incidences: Mapped[bool] = mapped_column(Boolean, default=True)
