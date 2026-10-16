@@ -61,9 +61,10 @@ export function TodayOverview({ state }: { state: AsyncState<TodayOverviewData> 
                             </p>
                         ) : (
                             <>
-                                {!data.limit_passed && (
+                                {data.pending_count > 0 && (
                                     <p className="notice">
-                                        Aún dentro del horario de tolerancia (hasta las {data.late_limit}).
+                                        {data.pending_count} {data.pending_count === 1 ? 'persona aún está' : 'personas aún están'} dentro
+                                        de su horario de entrada.
                                     </p>
                                 )}
 

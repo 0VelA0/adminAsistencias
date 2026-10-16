@@ -15,6 +15,7 @@ const EMPLOYEE_ITEMS: Item[] = [
   { page: 'vacations', icon: 'sun', label: 'Vacaciones' },
   { page: 'history', icon: 'history', label: 'Historial' },
   { page: 'spaces', icon: 'building', label: 'Espacios' },
+    { page: 'team', icon: 'org', label: 'Equipo' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
@@ -25,6 +26,7 @@ const ADMIN_ITEMS: Item[] = [
   { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
   { page: 'users', icon: 'users', label: 'Usuarios' },
   { page: 'admin-holidays', icon: 'calendar', label: 'Días festivos' },
+  { page: 'team', icon: 'org', label: 'Equipo' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 

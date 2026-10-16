@@ -13,10 +13,18 @@ from pwdlib import PasswordHash
 from sqlalchemy import and_, or_, select, inspect, text, delete, func, update
 from sqlalchemy.orm import Session
 import base64
+import re
+from dataclasses import dataclass
+from io import BytesIO
+
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
+from pydantic import EmailStr, TypeAdapter
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -63,7 +71,15 @@ from .schemas import (
     AttendanceEdit,
     ManualAttendanceInput,
     HolidayIn,
-    HolidayOut
+    HolidayOut,
+    HHMM,
+    ScheduleOut,
+    PersonOut,
+    ProfileUpdateIn,
+    ImportIn,
+    ImportResult,
+    ImportRowResult,
+    ImportCredential
 )
 
 
@@ -205,40 +221,54 @@ def as_utc(value: datetime) -> datetime:
 
     return value.astimezone(timezone.utc)
 
-def is_late_entry(recorded_at: datetime) -> bool:
-    """
-    Determina si una entrada debe marcarse como late.
+@dataclass
+class Schedule:
+    start: int        # minutos desde medianoche
+    end: int
+    tolerance: int
+    days: list[int]   # lunes = 0
+    custom: bool
 
-    Ejemplo:
 
-    Inicio: 09:00
-    Tolerancia: 10 minutos
-
-    Hasta 09:10 -> normal
-    Desde 09:11 -> late
-    """
-
-    local_datetime = normalize_datetime(
-        recorded_at
-    ).astimezone(LOCAL_TIMEZONE)
-
-    hours, minutes = map(
-        int,
-        settings.work_start_time.split(":")[:2],
+def default_schedule() -> Schedule:
+    return Schedule(
+        start=to_minutes(settings.work_start_time[:5]),
+        end=to_minutes(getattr(settings, "work_end_time", "18:00")[:5]),
+        tolerance=settings.late_grace_minutes,
+        days=[0, 1, 2, 3, 4],
+        custom=False,
     )
 
-    work_start = local_datetime.replace(
-        hour=hours,
-        minute=minutes,
-        second=0,
-        microsecond=0,
+
+def schedule_from_profile(profile: "EmployeeProfile | None") -> Schedule:
+    base = default_schedule()
+
+    if not profile or profile.work_start_minutes is None:
+        return base
+
+    return Schedule(
+        start=profile.work_start_minutes,
+        end=profile.work_end_minutes or base.end,
+        tolerance=profile.tolerance_minutes if profile.tolerance_minutes is not None else base.tolerance,
+        days=[int(d) for d in (profile.work_days or "0,1,2,3,4").split(",") if d != ""],
+        custom=True,
     )
 
-    late_limit = work_start + timedelta(
-        minutes=settings.late_grace_minutes
-    )
 
-    return local_datetime > late_limit
+def get_profile(db: Session, user_id: int) -> "EmployeeProfile | None":
+    return db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == user_id))
+
+
+def get_schedule(db: Session, user_id: int) -> Schedule:
+    return schedule_from_profile(get_profile(db, user_id))
+
+
+def is_late_entry(recorded_at: datetime, schedule: Schedule | None = None) -> bool:
+    schedule = schedule or default_schedule()
+    local = normalize_datetime(recorded_at).astimezone(LOCAL_TIMEZONE)
+    seconds = local.hour * 3600 + local.minute * 60 + local.second
+
+    return seconds > (schedule.start + schedule.tolerance) * 60
 
 
 # =========================================================
@@ -455,6 +485,8 @@ def create_attendance_record(
     note: str | None = None,
 ) -> AttendanceRecord:
 
+    
+
     # -----------------------------------------------------
     # 1. Validar tipo de asistencia
     # -----------------------------------------------------
@@ -627,7 +659,7 @@ def create_attendance_record(
         if kind == "entry":
             attendance_status = (
                 "late"
-                if is_late_entry(recorded_at)
+                if is_late_entry(recorded_at, get_schedule(db, user.id))
                 else "normal"
             )
         else:
@@ -1132,71 +1164,51 @@ def today_overview(
     _: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ):
-
     now_local = get_local_now()
     today = now_local.date()
+    now_minutes = now_local.hour * 60 + now_local.minute
+
     holiday = db.scalar(select(Holiday).where(Holiday.holiday_date == today))
-    is_workday = today.weekday() < 5 and holiday is None
-
-    hours, minutes = map(
-        int,
-        settings.work_start_time.split(":")[:2],
-    )
-
-    late_limit = now_local.replace(
-        hour=hours,
-        minute=minutes,
-        second=0,
-        microsecond=0,
-    ) + timedelta(minutes=settings.late_grace_minutes)
 
     employees = db.scalars(
         select(User)
-        .where(
-            User.role == "employee",
-            User.is_active.is_(True),
-        )
+        .where(User.role == "employee", User.is_active.is_(True))
         .order_by(User.full_name)
     ).all()
 
-    attendance: dict[int, dict[str, AttendanceRecord]] = {}
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
 
+    attendance: dict[int, dict[str, AttendanceRecord]] = {}
     for record in db.scalars(
-        select(AttendanceRecord).where(
-            AttendanceRecord.work_date == today
-        )
+        select(AttendanceRecord).where(AttendanceRecord.work_date == today)
     ).all():
         attendance.setdefault(record.user_id, {})[record.kind] = record
 
-    vacations = {
-        v.user_id: v
-        for v in db.scalars(
-            select(VacationRequest).where(
-                VacationRequest.status == "approved",
-                VacationRequest.start_date <= today,
-                VacationRequest.end_date >= today,
-            )
-        ).all()
-    }
+    def approved(model):
+        return {
+            item.user_id: item
+            for item in db.scalars(
+                select(model).where(
+                    model.status == "approved",
+                    model.start_date <= today,
+                    model.end_date >= today,
+                )
+            ).all()
+        }
 
-    permissions = {
-        p.user_id: p
-        for p in db.scalars(
-            select(PermissionRequest).where(
-                PermissionRequest.status == "approved",
-                PermissionRequest.start_date <= today,
-                PermissionRequest.end_date >= today,
-            )
-        ).all()
-    }
+    vacations = approved(VacationRequest)
+    permissions = approved(PermissionRequest)
 
-    registered = []
-    missing = []
-    on_vacation = []
-    on_permission = []
+    registered, missing, on_vacation, on_permission = [], [], [], []
+    pending = 0
+    anyone_works = False
 
     for employee in employees:
         user_out = UserOut.model_validate(employee)
+        schedule = schedule_from_profile(profiles.get(employee.id))
+        works_today = holiday is None and today.weekday() in schedule.days
+        anyone_works = anyone_works or works_today
+
         records = attendance.get(employee.id, {})
         entry = records.get("entry")
         exit_record = records.get("exit")
@@ -1210,43 +1222,31 @@ def today_overview(
                     status=entry.status,
                 )
             )
-
         elif employee.id in vacations:
-            vacation = vacations[employee.id]
-            on_vacation.append(
-                TodayAbsenceOut(
-                    user=user_out,
-                    start_date=vacation.start_date,
-                    end_date=vacation.end_date,
-                )
-            )
-
+            v = vacations[employee.id]
+            on_vacation.append(TodayAbsenceOut(user=user_out, start_date=v.start_date, end_date=v.end_date))
         elif employee.id in permissions:
-            permission = permissions[employee.id]
+            p = permissions[employee.id]
             on_permission.append(
-                TodayAbsenceOut(
-                    user=user_out,
-                    start_date=permission.start_date,
-                    end_date=permission.end_date,
-                    kind=permission.kind,
-                )
+                TodayAbsenceOut(user=user_out, start_date=p.start_date, end_date=p.end_date, kind=p.kind)
             )
-
-        elif is_workday:
-            missing.append(user_out)
+        elif works_today:
+            if now_minutes > schedule.start + schedule.tolerance:
+                missing.append(user_out)
+            else:
+                pending += 1
 
     registered.sort(key=lambda item: item.entry_at)
 
     return TodayOverviewOut(
         work_date=today,
-        is_workday=is_workday,
-        late_limit=late_limit.strftime("%H:%M"),
-        limit_passed=now_local > late_limit,
+        is_workday=anyone_works,
+        holiday_name=holiday.name if holiday else None,
+        pending_count=pending,
         registered=registered,
         missing=missing,
         on_vacation=on_vacation,
         on_permission=on_permission,
-        holiday_name=holiday.name if holiday else None,
     )
 
 @app.patch(
@@ -1258,8 +1258,11 @@ def edit_attendance(
     data: AttendanceEdit,
     admin: User = Depends(admin_user),
     db: Session = Depends(get_db),
+    
 ):
     record = db.get(AttendanceRecord, record_id)
+
+    
 
     if not record:
         raise HTTPException(status_code=404, detail="Registro no encontrado.")
@@ -1296,7 +1299,7 @@ def edit_attendance(
         time_changed = True
 
         if record.kind == "entry" and data.status is None:
-            record.status = "late" if is_late_entry(new_local) else "normal"
+            record.status = "late" if is_late_entry(new_local, get_schedule(db, record.user_id)) else "normal"
 
     if data.status is not None and record.kind == "entry":
         record.status = data.status
@@ -2279,7 +2282,7 @@ def profile_out(user: User, prefs: UserPreferences) -> ProfileOut:
     "/profile",
     response_model=ProfileOut,
 )
-def get_profile(
+def read_my_profile(
     user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
@@ -2672,12 +2675,10 @@ def sync_attendance_notifications(
         getattr(settings, "work_end_time", "18:00").split(":")[:2],
     )
 
-    today_cutoff = now_local.replace(
-        hour=hours,
-        minute=minutes,
-        second=0,
-        microsecond=0,
-    ) + timedelta(minutes=30)
+    schedule = get_schedule(db, user.id)
+    today_cutoff = now_local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
+        minutes=schedule.end + 30
+    )
 
     by_date: dict[date, dict[str, AttendanceRecord]] = {}
 
@@ -2745,6 +2746,7 @@ def sync_weekly_summary(
     monday = today - timedelta(days=today.weekday() + 7)
     sunday = monday + timedelta(days=6)
     key = f"weekly-{monday.isoformat()}"
+    schedule = get_schedule(db, user.id)
 
     already = db.scalar(
         select(Notification.id).where(
@@ -2809,7 +2811,7 @@ def sync_weekly_summary(
                 ).total_seconds()
 
         elif (
-            day.weekday() < 5
+            day.weekday() in schedule.days
             and day not in holidays
             and not any(start <= day <= end for start, end in away)
             and (not user.hire_date or day >= user.hire_date)
@@ -3214,6 +3216,7 @@ def purge_user(db: Session, user: User) -> None:
     uid = user.id
 
     # Lo que este usuario hizo sobre otros se conserva, sin su nombre
+    db.execute(update(EmployeeProfile).where(EmployeeProfile.manager_id == uid).values(manager_id=None))
     db.execute(update(AttendanceRecord).where(AttendanceRecord.created_by_id == uid).values(created_by_id=None))
     db.execute(update(VacationRequest).where(VacationRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
     db.execute(update(PermissionRequest).where(PermissionRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
@@ -3350,6 +3353,575 @@ def delete_holiday(
     db.commit()
 
     return {"ok": True}
+
+# =========================================================
+# PERSONAL
+# =========================================================
+
+
+def schedule_out(schedule: Schedule) -> ScheduleOut:
+    return ScheduleOut(
+        start_time=to_hhmm(schedule.start),
+        end_time=to_hhmm(schedule.end),
+        tolerance_minutes=schedule.tolerance,
+        work_days=schedule.days,
+        is_custom=schedule.custom,
+    )
+
+
+def build_person(user: User, profile: "EmployeeProfile | None", phone: str | None) -> PersonOut:
+    return PersonOut(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        role=user.role,
+        avatar=user.avatar,
+        is_active=user.is_active,
+        hire_date=user.hire_date,
+        employee_code=profile.employee_code if profile else None,
+        position=profile.position if profile else None,
+        department=profile.department if profile else None,
+        manager_id=profile.manager_id if profile else None,
+        phone=phone,
+        schedule=schedule_out(schedule_from_profile(profile)),
+    )
+
+
+def creates_cycle(db: Session, user_id: int, manager_id: int) -> bool:
+    """¿Asignar este jefe haría que la persona termine reportándose a sí misma?"""
+
+    managers = {p.user_id: p.manager_id for p in db.scalars(select(EmployeeProfile)).all()}
+    current, seen = manager_id, set()
+
+    while current is not None and current not in seen:
+        if current == user_id:
+            return True
+
+        seen.add(current)
+        current = managers.get(current)
+
+    return False
+
+
+@app.get("/people", response_model=list[PersonOut])
+def list_people(
+    include_inactive: bool = False,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    is_admin = user.role == "admin"
+    query = select(User).order_by(User.full_name)
+
+    if not (is_admin and include_inactive):
+        query = query.where(User.is_active.is_(True))
+
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
+
+    # El teléfono solo lo ve el admin
+    phones = (
+        {p.user_id: p.phone for p in db.scalars(select(UserPreferences)).all()}
+        if is_admin
+        else {}
+    )
+
+    return [
+        build_person(person, profiles.get(person.id), phones.get(person.id))
+        for person in db.scalars(query).all()
+    ]
+
+
+@app.get("/schedule/mine", response_model=ScheduleOut)
+def my_schedule(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    return schedule_out(get_schedule(db, user.id))
+
+
+@app.put("/people/{user_id}/profile", response_model=PersonOut)
+def update_person_profile(
+    user_id: int,
+    data: ProfileUpdateIn,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+
+    if not target:
+        raise HTTPException(status_code=404, detail="Persona no encontrada.")
+
+    code = (data.employee_code or "").strip() or None
+
+    if code and db.scalar(
+        select(EmployeeProfile.id).where(
+            EmployeeProfile.employee_code == code,
+            EmployeeProfile.user_id != user_id,
+        )
+    ):
+        raise HTTPException(status_code=409, detail="Ese código de empleado ya está asignado a otra persona.")
+
+    if data.manager_id is not None:
+        if data.manager_id == user_id:
+            raise HTTPException(status_code=400, detail="Una persona no puede ser su propio jefe.")
+
+        if not db.get(User, data.manager_id):
+            raise HTTPException(status_code=404, detail="El jefe directo no existe.")
+
+        if creates_cycle(db, user_id, data.manager_id):
+            raise HTTPException(
+                status_code=400,
+                detail="Ese jefe depende de esta persona: se formaría un ciclo en el organigrama.",
+            )
+
+    profile = get_profile(db, user_id)
+
+    if profile is None:
+        profile = EmployeeProfile(user_id=user_id)
+        db.add(profile)
+
+    profile.employee_code = code
+    profile.position = (data.position or "").strip() or None
+    profile.department = (data.department or "").strip() or None
+    profile.manager_id = data.manager_id
+    target.hire_date = data.hire_date
+
+    if data.custom_schedule:
+        profile.work_start_minutes = to_minutes(data.start_time)
+        profile.work_end_minutes = to_minutes(data.end_time)
+        profile.tolerance_minutes = data.tolerance_minutes
+        profile.work_days = ",".join(str(d) for d in sorted(set(data.work_days)))
+    else:
+        profile.work_start_minutes = None
+        profile.work_end_minutes = None
+        profile.tolerance_minutes = None
+        profile.work_days = None
+
+    db.commit()
+    db.refresh(target)
+    db.refresh(profile)
+
+    return build_person(target, profile, None)
+
+# =========================================================
+# CARGA MASIVA DESDE EXCEL
+# =========================================================
+
+IMPORT_COLUMNS = [
+    "Código de empleado",
+    "Nombre completo",
+    "Correo",
+    "Rol",
+    "Puesto",
+    "Departamento",
+    "Correo del jefe directo",
+    "Fecha de ingreso",
+    "Teléfono",
+    "Hora de entrada",
+    "Hora de salida",
+    "Tolerancia (min)",
+    "Días laborables",
+]
+
+IMPORT_EXAMPLE = [
+    "E-001", "Ana López Pérez", "ana.lopez@empresa.com", "Empleado", "Contadora",
+    "Contabilidad", "director@empresa.com", "2024-03-15", "+52 999 123 4567",
+    "09:00", "18:00", "10", "L,M,X,J,V",
+]
+
+IMPORT_REQUIRED = {"Nombre completo", "Correo"}
+
+IMPORT_GUIDE = [
+    "CÓMO LLENAR LA PLANTILLA DE PERSONAL",
+    "",
+    "• Una fila por persona desde la fila 2. Borra la fila de ejemplo (en gris) antes de importar.",
+    "• Obligatorias (*): Nombre completo y Correo.",
+    "• Si el correo ya existe, la persona se ACTUALIZA. Si no, se CREA con una contraseña temporal.",
+    "• Las celdas vacías NO borran datos que ya existan en el sistema.",
+    "• Rol: Empleado o Administrador. Si lo dejas vacío, será Empleado.",
+    "• Correo del jefe directo: puede estar en este mismo archivo o ya existir en el sistema.",
+    "• Fecha de ingreso: AAAA-MM-DD (ej. 2024-03-15) o DD/MM/AAAA. Define antigüedad y días de vacaciones.",
+    "• Código de empleado: el mismo que usas en nómina. Debe ser único.",
+    "• Horario propio (opcional): Hora de entrada y de salida en formato 24 h (09:00), tolerancia en minutos",
+    "  y días laborables con letras separadas por comas: L, M, X, J, V, S, D. Si lo dejas vacío, se usa el general.",
+    "• Máximo 500 filas por archivo. El sistema revisa todo antes de guardar: si hay errores, no se guarda nada.",
+]
+
+DAY_KEYS = {"L": 0, "M": 1, "X": 2, "J": 3, "V": 4, "S": 5, "D": 6}
+ROLE_KEYS = {"": "employee", "empleado": "employee", "administrador": "admin", "admin": "admin"}
+EMAIL_ADAPTER = TypeAdapter(EmailStr)
+
+
+def cell_text(value) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+
+    return str(value).strip()
+
+
+def parse_date_cell(value) -> date | None:
+    if value in (None, ""):
+        return None
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, date):
+        return value
+
+    text = str(value).strip()
+
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            pass
+
+    raise ValueError("Fecha de ingreso inválida (usa AAAA-MM-DD).")
+
+
+def parse_time_cell(value) -> int | None:
+    if value in (None, ""):
+        return None
+
+    if isinstance(value, (time, datetime)):
+        return value.hour * 60 + value.minute
+
+    if isinstance(value, float):  # Excel guarda horas como fracción del día
+        return round(value * 24 * 60)
+
+    text = str(value).strip()[:5]
+
+    if not re.match(HHMM, text):
+        raise ValueError(f"Hora '{value}' inválida (usa HH:MM en 24 h).")
+
+    return to_minutes(text)
+
+
+def parse_days_cell(value) -> list[int] | None:
+    text = cell_text(value).upper()
+
+    if not text:
+        return None
+
+    days = []
+
+    for part in re.split(r"[,\s;]+", text):
+        if not part:
+            continue
+
+        if part not in DAY_KEYS:
+            raise ValueError(f"Día '{part}' no válido (usa L, M, X, J, V, S, D).")
+
+        days.append(DAY_KEYS[part])
+
+    return sorted(set(days))
+
+
+@app.get("/people/import/template")
+def import_template(_: User = Depends(admin_user)):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Personal"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1E4BA0")
+
+    for column, title in enumerate(IMPORT_COLUMNS, start=1):
+        cell = sheet.cell(row=1, column=column, value=f"{title} *" if title in IMPORT_REQUIRED else title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+
+        example = sheet.cell(row=2, column=column, value=IMPORT_EXAMPLE[column - 1])
+        example.font = Font(italic=True, color="8A94A6")
+
+        sheet.column_dimensions[cell.column_letter].width = max(16, len(title) + 6)
+
+    sheet.row_dimensions[1].height = 30
+    sheet.freeze_panes = "A2"
+
+    roles = DataValidation(type="list", formula1='"Empleado,Administrador"', allow_blank=True)
+    sheet.add_data_validation(roles)
+    roles.add("D2:D501")
+
+    guide = workbook.create_sheet("Instrucciones")
+
+    for row, line in enumerate(IMPORT_GUIDE, start=1):
+        guide.cell(row=row, column=1, value=line).font = Font(bold=row == 1, size=13 if row == 1 else 11)
+
+    guide.column_dimensions["A"].width = 120
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+
+    return {
+        "filename": "plantilla-personal.xlsx",
+        "content": base64.b64encode(buffer.getvalue()).decode(),
+    }
+
+
+@app.post("/people/import", response_model=ImportResult)
+def import_people(
+    data: ImportIn,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        raw = base64.b64decode(data.content, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no se pudo leer.")
+
+    if len(raw) > 2_000_000:
+        raise HTTPException(status_code=400, detail="El archivo supera 2 MB.")
+
+    try:
+        workbook = load_workbook(BytesIO(raw), data_only=True, read_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo abrir el archivo. Usa la plantilla en formato .xlsx.")
+
+    sheet = workbook["Personal"] if "Personal" in workbook.sheetnames else workbook.worksheets[0]
+
+    users_by_email = {u.email.lower(): u for u in db.scalars(select(User)).all()}
+    users_by_id = {u.id: u for u in users_by_email.values()}
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
+    code_owner = {p.employee_code: p.user_id for p in profiles.values() if p.employee_code}
+
+    parsed: list[dict] = []
+    seen_emails: set[str] = set()
+    seen_codes: set[str] = set()
+    width = len(IMPORT_COLUMNS)
+
+    # ---------- 1. Leer y validar cada fila ----------
+    for row_number, values in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+        cells = list(values[:width]) + [None] * (width - len(values[:width]))
+        text = [cell_text(v) for v in cells]
+
+        if not any(text):
+            continue
+
+        email = text[2].lower()
+
+        if email == IMPORT_EXAMPLE[2]:
+            continue  # fila de ejemplo
+
+        if len(parsed) >= 500:
+            raise HTTPException(status_code=400, detail="Máximo 500 filas por archivo.")
+
+        errors: list[str] = []
+        existing = users_by_email.get(email)
+
+        if len(text[1]) < 2:
+            errors.append("Falta el nombre completo.")
+
+        try:
+            EMAIL_ADAPTER.validate_python(email)
+        except Exception:
+            errors.append("Correo inválido o vacío.")
+
+        if email in seen_emails:
+            errors.append("Correo repetido en el archivo.")
+        seen_emails.add(email)
+
+        role = ROLE_KEYS.get(text[3].lower())
+        if role is None:
+            errors.append("Rol inválido: usa Empleado o Administrador.")
+
+        code = text[0] or None
+        if code:
+            if code in seen_codes:
+                errors.append("Código de empleado repetido en el archivo.")
+            seen_codes.add(code)
+
+            owner = code_owner.get(code)
+            if owner and (not existing or owner != existing.id):
+                errors.append("Ese código ya pertenece a otra persona.")
+
+        hire = start = end = tolerance = days = None
+
+        try:
+            hire = parse_date_cell(cells[7])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        try:
+            start = parse_time_cell(cells[9])
+            end = parse_time_cell(cells[10])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        if text[11]:
+            if text[11].isdigit() and int(text[11]) <= 180:
+                tolerance = int(text[11])
+            else:
+                errors.append("Tolerancia inválida (0 a 180 minutos).")
+
+        try:
+            days = parse_days_cell(cells[12])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        custom = any(v is not None for v in (start, end, tolerance, days))
+
+        if custom and (start is None or end is None):
+            errors.append("Para un horario propio indica hora de entrada y de salida.")
+
+        if start is not None and end is not None and end <= start:
+            errors.append("La salida debe ser posterior a la entrada.")
+
+        manager = text[6].lower() or None
+
+        if manager and manager == email:
+            errors.append("Una persona no puede ser su propio jefe.")
+
+        parsed.append({
+            "row": row_number, "email": email, "name": text[1], "role": role, "code": code,
+            "position": text[4] or None, "department": text[5] or None, "manager": manager,
+            "hire": hire, "phone": text[8] or None, "start": start, "end": end,
+            "tolerance": tolerance, "days": days, "custom": custom,
+            "errors": errors, "existing": existing,
+        })
+
+    # ---------- 2. Jefes: que existan y que no formen ciclos ----------
+    file_emails = {p["email"] for p in parsed}
+    chain: dict[str, str] = {}
+
+    for profile in profiles.values():
+        member = users_by_id.get(profile.user_id)
+        boss = users_by_id.get(profile.manager_id) if profile.manager_id else None
+
+        if member and boss:
+            chain[member.email.lower()] = boss.email.lower()
+
+    for item in parsed:
+        if not item["manager"]:
+            continue
+
+        if item["manager"] not in file_emails and item["manager"] not in users_by_email:
+            item["errors"].append("El jefe directo no existe ni en el archivo ni en el sistema.")
+        else:
+            chain[item["email"]] = item["manager"]
+
+    for item in parsed:
+        current, seen = chain.get(item["email"]), set()
+
+        while current and current not in seen:
+            if current == item["email"]:
+                item["errors"].append("Los jefes forman un ciclo (A reporta a B y B reporta a A).")
+                break
+
+            seen.add(current)
+            current = chain.get(current)
+
+    rows = [
+        ImportRowResult(
+            row=p["row"],
+            email=p["email"],
+            full_name=p["name"],
+            action="error" if p["errors"] else ("update" if p["existing"] else "create"),
+            errors=p["errors"],
+        )
+        for p in parsed
+    ]
+
+    summary = {
+        "rows": rows,
+        "created": sum(r.action == "create" for r in rows),
+        "updated": sum(r.action == "update" for r in rows),
+        "failed": sum(r.action == "error" for r in rows),
+    }
+
+    if data.dry_run:
+        return ImportResult(dry_run=True, **summary)
+
+    if not parsed:
+        raise HTTPException(status_code=400, detail="El archivo no tiene filas para importar.")
+
+    if summary["failed"]:
+        raise HTTPException(status_code=400, detail="Corrige los errores del archivo antes de importar.")
+
+    # ---------- 3. Guardar todo o nada ----------
+    credentials: list[ImportCredential] = []
+
+    try:
+        for item in parsed:
+            user = item["existing"]
+
+            if user is None:
+                temporary = generate_temporary_password()
+                user = User(
+                    email=item["email"],
+                    full_name=item["name"],
+                    password_hash=password_hash.hash(temporary),
+                    role=item["role"],
+                    is_active=True,
+                )
+                db.add(user)
+                db.flush()
+
+                users_by_email[item["email"]] = user
+                credentials.append(
+                    ImportCredential(full_name=item["name"], email=item["email"], temporary_password=temporary)
+                )
+            else:
+                user.full_name = item["name"]
+
+                if user.id != admin.id:  # nadie se quita su propio rol de admin
+                    user.role = item["role"]
+
+            if item["hire"]:
+                user.hire_date = item["hire"]
+
+            profile = profiles.get(user.id)
+
+            if profile is None:
+                profile = EmployeeProfile(user_id=user.id)
+                db.add(profile)
+                profiles[user.id] = profile
+
+            if item["code"]:
+                profile.employee_code = item["code"]
+            if item["position"]:
+                profile.position = item["position"]
+            if item["department"]:
+                profile.department = item["department"]
+
+            if item["custom"]:
+                profile.work_start_minutes = item["start"]
+                profile.work_end_minutes = item["end"]
+                profile.tolerance_minutes = (
+                    item["tolerance"] if item["tolerance"] is not None else settings.late_grace_minutes
+                )
+                profile.work_days = ",".join(str(d) for d in (item["days"] or [0, 1, 2, 3, 4]))
+
+            if item["phone"]:
+                prefs = db.scalar(select(UserPreferences).where(UserPreferences.user_id == user.id))
+
+                if prefs is None:
+                    prefs = UserPreferences(user_id=user.id)
+                    db.add(prefs)
+
+                prefs.phone = item["phone"]
+
+        db.flush()
+
+        # Los jefes se asignan al final: pueden venir en el mismo archivo
+        for item in parsed:
+            if item["manager"]:
+                member = users_by_email[item["email"]]
+                profiles[member.id].manager_id = users_by_email[item["manager"]].id
+
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo completar la importación. No se guardó ningún cambio.",
+        ) from exc
+
+    return ImportResult(dry_run=False, **summary, credentials=credentials)
 
 # =========================================================
 # FRONTEND ESTÁTICO

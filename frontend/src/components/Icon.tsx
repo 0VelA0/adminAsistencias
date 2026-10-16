@@ -4,7 +4,8 @@ export type IconName =
     | 'home' | 'clock' | 'sun' | 'history' | 'sliders' | 'users' | 'clipboard'
     | 'bell' | 'logout' | 'login' | 'switch' | 'palette' | 'user' | 'shield'
     | 'file' | 'pin' | 'check' | 'alert' | 'x' | 'trend' | 'pie' | 'building'
-    | 'plus' | 'more' | 'calendar'
+    | 'plus' | 'more' | 'calendar' | 'org' | 'search' | 'chevron' | 'minus' 
+    | 'target' | 'mail' | 'phone' | 'upload' | 'download' | 'briefcase'
 
 const PATHS: Record<IconName, ReactNode> = {
     home: <><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
@@ -32,6 +33,16 @@ const PATHS: Record<IconName, ReactNode> = {
     plus: <path d="M12 5v14M5 12h14" />,
     more: <><circle cx="5" cy="12" r="1.4" fill="currentColor" /><circle cx="12" cy="12" r="1.4" fill="currentColor" /><circle cx="19" cy="12" r="1.4" fill="currentColor" /></>,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
+    org: <><rect x="9" y="3" width="6" height="5" rx="1" /><rect x="3" y="16" width="6" height="5" rx="1" /><rect x="15" y="16" width="6" height="5" rx="1" /><path d="M12 8v4M6 16v-2h12v2" /></>,
+    search: <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>,
+    chevron: <path d="M6 9l6 6 6-6" />,
+    minus: <path d="M5 12h14" />,
+    target: <><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
+    mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
+    phone: <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" />,
+    upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
+    download: <><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
+    briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 12h18" /></>,
 }
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

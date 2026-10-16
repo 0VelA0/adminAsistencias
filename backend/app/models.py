@@ -381,3 +381,19 @@ class Holiday(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     holiday_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
+
+class EmployeeProfile(Base):
+    __tablename__ = "employee_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    employee_code: Mapped[str | None] = mapped_column(String(30), unique=True, nullable=True)
+    position: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+
+    # Horario propio (todo en None = usa el horario general)
+    work_start_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    work_end_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tolerance_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    work_days: Mapped[str | None] = mapped_column(String(20), nullable=True)

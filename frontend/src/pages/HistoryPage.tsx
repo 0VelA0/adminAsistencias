@@ -21,17 +21,19 @@ export function HistoryPage({
     vacationRequests,
     permissionRequests,
     holidays,
+    workDays,
 }: {
     records: AttendanceRecord[]
     vacationRequests: VacationRequest[]
     permissionRequests: PermissionRequest[]
     holidays: Set<string>
+    workDays: number[]
 }) {
     const [filter, setFilter] = useState<HistoryFilter>('all')
 
     const days = useMemo(
-        () => classifyDays(records, [...vacationRequests, ...permissionRequests], holidays),
-        [records, vacationRequests, permissionRequests, holidays]
+        () => classifyDays(records, [...vacationRequests, ...permissionRequests], holidays, workDays),
+        [records, vacationRequests, permissionRequests, holidays, workDays]
     )
 
     const summary = useMemo(() => summarize(days), [days])

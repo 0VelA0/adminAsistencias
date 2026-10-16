@@ -11,7 +11,8 @@ import type {
     VacationRequest,
     PermissionRequest,
     Page,
-    Holiday
+    Holiday,
+    Schedule
 } from './lib/types'
 
 import { AppHeader } from './components/AppHeader'
@@ -31,6 +32,7 @@ import './styles.css'
 import { SpacesAdminPage } from './pages/SpacesAdminPage'
 import { SpacesPage } from './pages/SpacesPage'
 import { HolidaysPage } from './pages/HolidaysPage'
+import { TeamPage } from './pages/TeamPage'
 
 
 function App() {
@@ -39,6 +41,14 @@ function App() {
             'attendance_token'
         ) || ''
     )
+
+    const [schedule, setSchedule] = useState<Schedule | null>(null)
+
+    useEffect(() => {
+        if (token) api<Schedule>('/schedule/mine', {}, token).then(setSchedule).catch(() => undefined)
+    }, [token])
+
+    const workDays = schedule?.work_days ?? [0, 1, 2, 3, 4]
 
     const [user, setUser] =
         useState<User | null>(null)
@@ -271,6 +281,8 @@ function App() {
                             {activePage === 'admin-spaces' && <SpacesAdminPage token={token} user={user} />}
 
                             {activePage === 'admin-holidays' && <HolidaysPage token={token} onChanged={loadHolidays} />}
+
+                            {activePage === 'team' && <TeamPage token={token} user={user} />}
                         </>
                 ) : (
                     <>
@@ -314,6 +326,7 @@ function App() {
                                 permissionRequests={permissionRequests}
                                 onPermissionsChange={loadPermissionRequests}
                                 holidays={holidayDates}
+                                workDays={workDays}
                             /> 
                         )}
                         {activePage === 'history' && (
@@ -322,6 +335,7 @@ function App() {
                                 vacationRequests={vacationRequests}
                                 permissionRequests={permissionRequests}
                                 holidays={holidayDates}
+                                workDays={workDays}
                             />
                         )}
                         {activePage === 'settings' &&(
@@ -336,6 +350,7 @@ function App() {
                         )}
                        
                         {activePage === 'spaces' && <SpacesPage token={token} user={user} />}
+                        {activePage === 'team' && <TeamPage token={token} user={user} />}
                             
                     </>
 

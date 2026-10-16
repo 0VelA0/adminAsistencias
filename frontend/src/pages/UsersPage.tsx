@@ -11,6 +11,8 @@ import { StateView } from '../components/StatusBlocks'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toast'
 import { DeleteUserModal } from '../components/DeleteUserModal'
+import { ImportPeopleModal } from '../components/ImportPeopleModal'
+import { PersonProfileModal } from '../components/PersonProfileModal'
 
 type Credentials = {
     title: string
@@ -37,6 +39,8 @@ export function UsersPage({
     const [editing, setEditing] = useState<User | null>(null)
     const toast = useToast()
     const [deleting, setDeleting] = useState<User | null>(null)
+    const [importing, setImporting] = useState(false)
+    const [profileFor, setProfileFor] = useState<number | null>(null)
 
     const load = list.reload
 
@@ -110,9 +114,14 @@ export function UsersPage({
                     <p className="muted">Crea cuentas y gestiona el acceso del equipo.</p>
                 </div>
 
-                <button type="button" onClick={() => setShowCreate(true)}>
-                    + Nuevo usuario
-                </button>
+                <div className="heading-actions">
+                    <button type="button" className="secondary" onClick={() => setImporting(true)}>
+                        <Icon name="upload" size={16} /> Importar desde Excel
+                    </button>
+                    <button type="button" onClick={() => setShowCreate(true)}>
+                        <Icon name="plus" size={16} /> Nuevo usuario
+                    </button>
+                </div>
             </div>
 
             {error && <p className="error">{error}</p>}
@@ -248,6 +257,14 @@ export function UsersPage({
                                                                 '—'
                                                             ) : (
                                                                 <div className="row-actions">
+                                                                    <button 
+                                                                        type="button" 
+                                                                        className="secondary compact" 
+                                                                        onClick={() => setProfileFor(user.id)}
+                                                                    >
+                                                                        Perfil
+                                                                    </button>
+
                                                                     <button
                                                                         type="button"
                                                                         className="compact"
@@ -295,7 +312,7 @@ export function UsersPage({
             {credentials && (
                 <CredentialsModal {...credentials} onClose={() => setCredentials(null)} />
             )}
-            
+
             {editing && (
                 <EditUserModal
                     token={token}
@@ -307,6 +324,12 @@ export function UsersPage({
 
             {deleting && (
                 <DeleteUserModal token={token} user={deleting} onClose={() => setDeleting(null)} onDeleted={load} />
+            )}
+
+            {importing && <ImportPeopleModal token={token} onClose={() => setImporting(false)} onImported={load} />}
+
+            {profileFor !== null && (
+                <PersonProfileModal token={token} userId={profileFor} onClose={() => setProfileFor(null)} onSaved={load} />
             )}
         </div>
     )

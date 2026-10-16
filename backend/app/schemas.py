@@ -362,8 +362,7 @@ class TodayAbsenceOut(BaseModel):
 class TodayOverviewOut(BaseModel):
     work_date: date
     is_workday: bool
-    late_limit: str
-    limit_passed: bool
+    pending_count: int = 0
     registered: list[TodayEntryOut]
     missing: list[UserOut]
     on_vacation: list[TodayAbsenceOut]
@@ -461,6 +460,86 @@ def to_minutes(value: str) -> int:
 
 def to_hhmm(total: int) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
+
+class ScheduleOut(BaseModel):
+    start_time: str
+    end_time: str
+    tolerance_minutes: int
+    work_days: list[int]
+    is_custom: bool
+
+
+class PersonOut(BaseModel):
+    id: int
+    full_name: str
+    email: EmailStr
+    role: str
+    avatar: str | None = None
+    is_active: bool
+    hire_date: date | None = None
+    employee_code: str | None = None
+    position: str | None = None
+    department: str | None = None
+    manager_id: int | None = None
+    phone: str | None = None
+    schedule: ScheduleOut
+
+
+class ProfileUpdateIn(BaseModel):
+    employee_code: str | None = Field(default=None, max_length=30)
+    position: str | None = Field(default=None, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    manager_id: int | None = None
+    hire_date: date | None = None
+    custom_schedule: bool = False
+    start_time: str | None = Field(default=None, pattern=HHMM)
+    end_time: str | None = Field(default=None, pattern=HHMM)
+    tolerance_minutes: int | None = Field(default=None, ge=0, le=180)
+    work_days: list[int] | None = None
+
+    @model_validator(mode="after")
+    def valid_schedule(self):
+        if not self.custom_schedule:
+            return self
+
+        if not self.start_time or not self.end_time or self.tolerance_minutes is None or not self.work_days:
+            raise ValueError("Completa entrada, salida, tolerancia y días del horario propio.")
+
+        if to_minutes(self.end_time) <= to_minutes(self.start_time):
+            raise ValueError("La salida debe ser posterior a la entrada.")
+
+        if any(day < 0 or day > 6 for day in self.work_days):
+            raise ValueError("Los días van de 0 (lunes) a 6 (domingo).")
+
+        return self
+
+
+class ImportIn(BaseModel):
+    content: str = Field(max_length=4_000_000)  # .xlsx en base64
+    dry_run: bool = True
+
+
+class ImportRowResult(BaseModel):
+    row: int
+    email: str
+    full_name: str
+    action: str  # create | update | error
+    errors: list[str] = []
+
+
+class ImportCredential(BaseModel):
+    full_name: str
+    email: str
+    temporary_password: str
+
+
+class ImportResult(BaseModel):
+    dry_run: bool
+    rows: list[ImportRowResult]
+    created: int
+    updated: int
+    failed: int
+    credentials: list[ImportCredential] = []
 
 
 class SpaceIn(BaseModel):

@@ -109,8 +109,7 @@ export type TodayAbsence = {
 export type TodayOverview = {
     work_date: string
     is_workday: boolean
-    late_limit: string
-    limit_passed: boolean
+    pending_count: number
     registered: TodayEntry[]
     missing: User[]
     on_vacation: TodayAbsence[]
@@ -131,6 +130,7 @@ export type Page =
     | 'admin-spaces'
     | 'spaces'
     | 'admin-holidays'
+    | 'team'
 
 export type Branding = {
     company_name: string
@@ -192,3 +192,44 @@ export type NotificationsData = { items: AppNotification[]; unread: number }
 export type UserCreated = User & { temporary_password: string }
 
 export type Holiday = { id: number; holiday_date: string; name: string }
+
+export type Schedule = {
+    start_time: string
+    end_time: string
+    tolerance_minutes: number
+    work_days: number[]
+    is_custom: boolean
+}
+
+export type Person = {
+    id: number
+    full_name: string
+    email: string
+    role: string
+    avatar: string | null
+    is_active: boolean
+    hire_date: string | null
+    employee_code: string | null
+    position: string | null
+    department: string | null
+    manager_id: number | null
+    phone: string | null
+    schedule: Schedule
+}
+
+export type ImportRow = {
+    row: number
+    email: string
+    full_name: string
+    action: 'create' | 'update' | 'error'
+    errors: string[]
+}
+
+export type ImportResult = {
+    dry_run: boolean
+    rows: ImportRow[]
+    created: number
+    updated: number
+    failed: number
+    credentials: { full_name: string; email: string; temporary_password: string }[]
+}

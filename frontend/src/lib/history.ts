@@ -17,6 +17,7 @@ export function classifyDays(
     records: AttendanceRecord[],
     ranges: Range[],
     holidays: Set<string>,
+    workDays: number[],
     now = new Date()
 ): ClassifiedDay[] {
     const rows = groupByDay(records).filter(r =>
@@ -59,6 +60,9 @@ export function classifyDays(
                 r.end_date.slice(0, 10) >= key
         )
         if (covered) continue
+
+        const dayIndex = (d.getDay() + 6) % 7 // lunes = 0
+        if (!workDays.includes(dayIndex) || key === today || holidays.has(key)) continue
 
         result.push({ date: key, status: 'absent' })
     }
