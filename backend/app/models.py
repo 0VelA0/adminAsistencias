@@ -406,3 +406,51 @@ class IncidenceCode(Base):
     code: Mapped[str] = mapped_column(String(10))               # la que ve nómina
     label: Mapped[str] = mapped_column(String(80))
     include_in_incidences: Mapped[bool] = mapped_column(Boolean, default=True)
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # announcement | meeting
+    title: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(Text, default="")
+    image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    audience: Mapped[str] = mapped_column(String(120), default="all")  # all | team | dept:<área>
+
+    # Solo reuniones
+    meeting_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    start_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    meeting_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    space_id: Mapped[int | None] = mapped_column(ForeignKey("spaces.id"), nullable=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("space_bookings.id"), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class PostResponse(Base):
+    __tablename__ = "post_responses"
+
+    __table_args__ = (UniqueConstraint("post_id", "user_id", name="uq_post_response"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    response: Mapped[str] = mapped_column(String(10))  # seen | yes | no | maybe
+    comment: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

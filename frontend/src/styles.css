@@ -382,6 +382,13 @@ button.danger {
   color: var(--on-sidebar-muted);
 }
 
+.sidebar-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 .more-backdrop {
   display: none;
 }
@@ -3055,6 +3062,526 @@ button:active:not(:disabled) {
   border-color: var(--danger);
 }
 
+/* ---------- 21. COMUNICADOS ---------- */
+
+.news-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.news-feed {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.news-aside {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.empty-feed {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-feed strong {
+  color: var(--text);
+}
+
+.post-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) both;
+  transition: box-shadow .2s;
+}
+
+.post-card:hover {
+  box-shadow: 0 8px 22px rgba(25, 48, 75, .07);
+}
+
+.post-card.pinned {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  background: linear-gradient(180deg, var(--primary-faint), var(--surface) 120px);
+}
+
+.post-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-author {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.post-author strong {
+  font-size: 13px;
+}
+
+.post-author span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.post-tags .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.post-menu {
+  display: flex;
+  gap: 4px;
+}
+
+.post-menu button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.post-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.post-title {
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.post-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.post-body a {
+  color: var(--primary-strong);
+}
+
+.post-body .link {
+  margin-left: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.post-image {
+  width: 100%;
+  max-height: 460px;
+  border-radius: 12px;
+  object-fit: cover;
+  animation: fade-in .4s ease-out both;
+}
+
+.post-image-preview {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.post-image-preview img {
+  max-height: 220px;
+  border-radius: 10px;
+}
+
+.meeting-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line));
+  border-radius: 12px;
+  background: var(--primary-faint);
+}
+
+.meeting-box.past {
+  opacity: .7;
+  filter: grayscale(.4);
+}
+
+.meeting-date,
+.mini-date {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--on-primary);
+  line-height: 1;
+}
+
+.meeting-date {
+  width: 54px;
+  height: 58px;
+}
+
+.meeting-date strong {
+  font-size: 22px;
+}
+
+.meeting-date span,
+.mini-date span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mini-date {
+  width: 40px;
+  height: 42px;
+}
+
+.mini-date strong {
+  font-size: 15px;
+}
+
+.meeting-info {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.meeting-info span,
+.meeting-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.meeting-info a {
+  font-weight: 700;
+  color: var(--primary-strong);
+}
+
+.post-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.post-foot .link {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rsvp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rsvp button,
+.ack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rsvp button span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-size: 11px;
+}
+
+.rsvp button:hover:not(:disabled),
+.ack:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--line));
+}
+
+.rsvp .rsvp-yes.active,
+.ack.active {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.rsvp .rsvp-maybe.active {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.rsvp .rsvp-no.active {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.rsvp button.active span {
+  background: rgba(255, 255, 255, .6);
+}
+
+.ack.active .icon,
+.rsvp button.active {
+  animation: pop .3s ease-out;
+}
+
+.segmented button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 22. CALENDARIO ---------- */
+
+.calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.calendar-toolbar .date-nav {
+  margin: 0;
+}
+
+.calendar-title {
+  min-width: 160px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--event-color);
+}
+
+/* Un color por tipo de evento */
+.meeting      { --event-color: var(--primary); }
+.booking      { --event-color: #0f8f86; }
+.vacation     { --event-color: #2f7de1; }
+.permission   { --event-color: #8a5cf6; }
+.holiday      { --event-color: #64748b; }
+.team_absence { --event-color: #e08a2e; }
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  animation: fade-in .3s ease-out both;
+}
+
+.month-head {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-alt);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.month-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 6px;
+  border: 0;
+  border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+
+.month-cell:nth-child(7n) {
+  border-right: 0;
+}
+
+.month-cell:hover {
+  background: var(--primary-faint);
+}
+
+.month-cell.weekend {
+  background: #fbfcfe;
+}
+
+.month-cell.outside {
+  color: var(--field-line);
+}
+
+.month-cell.outside .event-chip {
+  opacity: .55;
+}
+
+.day-number {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.month-cell.today .day-number {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.cell-events {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.event-chip {
+  overflow: hidden;
+  padding: 2px 6px;
+  border-left: 3px solid var(--event-color);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--event-color) 12%, #fff);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.event-chip.pending,
+.event-row.pending {
+  border-left-style: dashed;
+  opacity: .75;
+}
+
+.more-events {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.agenda {
+  display: grid;
+  gap: 16px;
+}
+
+.agenda-day {
+  display: grid;
+  gap: 6px;
+  animation: fade-up .35s ease-out both;
+}
+
+.agenda-day h3 {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.agenda-day h3.is-today {
+  color: var(--primary);
+}
+
+.event-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--event-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--event-color) 7%, #fff);
+}
+
+.event-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--event-color) 16%, #fff);
+  color: var(--event-color);
+}
+
+.event-row .link {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drawer-day {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
 /* ---------- 14. RESPONSIVE ---------- */
 
 @media (max-width: 1100px) {
@@ -3078,6 +3605,15 @@ button:active:not(:disabled) {
 
   .report-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .news-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .news-aside {
+    position: static;
+    order: -1; /* las próximas reuniones van arriba */
   }
 }
 
@@ -3143,6 +3679,7 @@ button:active:not(:disabled) {
     display: flex;
     gap: 2px;
     width: 100%;
+    overflow: visible;
   }
 
   .sidebar-nav button {
@@ -3472,5 +4009,58 @@ button:active:not(:disabled) {
 
   .codes-table .code-input {
     width: 100px;
+  }
+
+    .post-head {
+    flex-wrap: wrap;
+  }
+
+  .post-tags {
+    order: 3;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .meeting-box {
+    align-items: flex-start;
+  }
+
+  .rsvp {
+    width: 100%;
+  }
+
+  .rsvp button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* En el mes, solo puntos de color */
+  .month-cell {
+    min-height: 56px;
+    padding: 4px;
+  }
+
+  .cell-events {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .event-chip {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--event-color);
+    font-size: 0;
+  }
+
+  .more-events {
+    display: none;
+  }
+
+  .calendar-title {
+    min-width: 0;
   }
 }

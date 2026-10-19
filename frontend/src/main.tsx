@@ -34,6 +34,8 @@ import { SpacesPage } from './pages/SpacesPage'
 import { HolidaysPage } from './pages/HolidaysPage'
 import { TeamPage } from './pages/TeamPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { NewsPage } from './pages/NewsPage'
+import { CalendarPage } from './pages/CalendarPage'
 
 
 function App() {
@@ -286,6 +288,10 @@ function App() {
                             {activePage === 'team' && <TeamPage token={token} user={user} />}
 
                             {activePage === 'admin-reports' && <ReportsPage token={token} />}
+
+                            {activePage === 'news' && <NewsPage token={token} />}
+
+                            {activePage === 'calendar' && <CalendarPage token={token} user={user} onNavigate={goTo} />}
                         </>
                 ) : (
                     <>
@@ -353,7 +359,12 @@ function App() {
                         )}
                        
                         {activePage === 'spaces' && <SpacesPage token={token} user={user} />}
+
                         {activePage === 'team' && <TeamPage token={token} user={user} />}
+
+                        {activePage === 'news' && <NewsPage token={token} />}
+                        
+                        {activePage === 'calendar' && <CalendarPage token={token} user={user} onNavigate={goTo} />}
                             
                     </>
 

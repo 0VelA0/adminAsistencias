@@ -13,21 +13,25 @@ const EMPLOYEE_ITEMS: Item[] = [
   { page: 'dashboard', icon: 'home', label: 'Dashboard' },
   { page: 'attendance', icon: 'clock', label: 'Asistencia' },
   { page: 'vacations', icon: 'sun', label: 'Vacaciones' },
+  { page: 'news', icon: 'megaphone', label: 'Comunicados' },
+  { page: 'calendar', icon: 'calendar', label: 'Calendario' },
   { page: 'history', icon: 'history', label: 'Historial' },
   { page: 'spaces', icon: 'building', label: 'Espacios' },
-    { page: 'team', icon: 'org', label: 'Equipo' },
+  { page: 'team', icon: 'org', label: 'Equipo' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
 const ADMIN_ITEMS: Item[] = [
   { page: 'admin-home', icon: 'home', label: 'Resumen' },
   { page: 'admin-requests', icon: 'clipboard', label: 'Solicitudes' },
+  { page: 'news', icon: 'megaphone', label: 'Comunicados' },
+  { page: 'calendar', icon: 'calendar', label: 'Calendario' },
   { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
-  { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
-  { page: 'users', icon: 'users', label: 'Usuarios' },
-  { page: 'admin-holidays', icon: 'calendar', label: 'Días festivos' },
-  { page: 'team', icon: 'org', label: 'Equipo' },
   { page: 'admin-reports', icon: 'download', label: 'Reportes' },
+  { page: 'team', icon: 'org', label: 'Equipo' },
+  { page: 'users', icon: 'users', label: 'Usuarios' },
+  { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
+  { page: 'admin-holidays', icon: 'calendar', label: 'Festivos' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 

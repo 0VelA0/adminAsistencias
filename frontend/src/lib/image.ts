@@ -78,3 +78,40 @@ export async function fileToLogo(file: File, maxSize = 320): Promise<string> {
         URL.revokeObjectURL(url)
     }
 }
+
+export async function fileToPostImage(file: File, maxSize = 1400): Promise<string> {
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+        throw new Error('Usa una imagen JPG, PNG o WebP.')
+    }
+
+    const url = URL.createObjectURL(file)
+
+    try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const image = new Image()
+            image.onload = () => resolve(image)
+            image.onerror = () => reject(new Error('No se pudo leer la imagen.'))
+            image.src = url
+        })
+
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Tu navegador no pudo procesar la imagen.')
+
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+        const result = canvas.toDataURL('image/jpeg', 0.82)
+
+        if (result.length > 1_350_000) throw new Error('La imagen es demasiado pesada. Prueba con otra.')
+
+        return result
+    } finally {
+        URL.revokeObjectURL(url)
+    }
+}

@@ -27,7 +27,7 @@ from openpyxl.utils import get_column_letter
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode,Post, PostResponse
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -87,7 +87,14 @@ from .schemas import (
     IncidenceCodeOut,
     ReportRequest,
     ReportPersonOut,
-    ReportPreviewOut
+    ReportPreviewOut,
+    PostIn,
+    PostOut,
+    PostAuthorOut,
+    PostsMetaOut,
+    RespondIn,
+    ResponsePersonOut,
+    CalendarEventOut
 )
 
 
@@ -124,6 +131,8 @@ PREF_BY_KIND = {
     "vacation": "notify_vacations",
     "permission": "notify_permissions",
     "weekly": "notify_weekly",
+    "company": "notify_company",
+    "meeting_reminder": "notify_company"
 }
 
 
@@ -2771,7 +2780,7 @@ def update_user(
     return target
 # AVATAR
 
-def validate_avatar(value: str) -> None:
+def validate_avatar(value: str, max_bytes: int = MAX_AVATAR_BYTES) -> None:
     for prefix, magic in AVATAR_FORMATS.items():
         if not value.startswith(prefix):
             continue
@@ -2781,16 +2790,15 @@ def validate_avatar(value: str) -> None:
         except Exception:
             break
 
-        if len(raw) <= MAX_AVATAR_BYTES and raw.startswith(magic):
+        if len(raw) <= max_bytes and raw.startswith(magic):
             return
 
         break
 
     raise HTTPException(
         status_code=400,
-        detail="La imagen no es válida. Usa JPG, PNG o WebP de máximo 300 KB.",
+        detail=f"La imagen no es válida. Usa JPG, PNG o WebP de máximo {max_bytes // 1000} KB.",
     )
-
 
 @app.put(
     "/profile/avatar",
@@ -3146,6 +3154,7 @@ def list_notifications(
     try:
         sync_attendance_notifications(db, user, prefs)
         sync_weekly_summary(db, user, prefs)
+        sync_meeting_reminders(db, user)
         db.commit()
     except Exception:
         db.rollback()
@@ -3270,6 +3279,79 @@ def booking_to_out(
         status=booking.status,
     )
 
+def book_space(
+    db: Session,
+    user: User,
+    space_id: int,
+    day: date,
+    start: int,
+    end: int,
+    title: str,
+    notes: str | None = None,
+) -> tuple[SpaceBooking, Space]:
+    """Valida y agrega una reserva a la sesión (el commit lo hace quien llama)."""
+
+    space = db.get(Space, space_id)
+
+    if not space or not space.is_active:
+        raise HTTPException(status_code=404, detail="Este espacio no está disponible.")
+
+    if end <= start:
+        raise HTTPException(status_code=400, detail="La hora de fin debe ser posterior a la de inicio.")
+
+    if start % 15 or end % 15:
+        raise HTTPException(status_code=400, detail="Las reservas son en bloques de 15 minutos.")
+
+    if start < space.open_minutes or end > space.close_minutes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{space.name} está disponible de {to_hhmm(space.open_minutes)} a {to_hhmm(space.close_minutes)}.",
+        )
+
+    if day.weekday() not in [int(d) for d in space.open_days.split(",") if d != ""]:
+        raise HTTPException(status_code=400, detail=f"{space.name} no abre ese día.")
+
+    now_local = get_local_now()
+
+    if day < now_local.date() or (day == now_local.date() and start < now_local.hour * 60 + now_local.minute):
+        raise HTTPException(status_code=400, detail="No puedes reservar en el pasado.")
+
+    conflict = db.scalar(
+        select(SpaceBooking)
+        .where(
+            SpaceBooking.space_id == space.id,
+            SpaceBooking.booking_date == day,
+            SpaceBooking.status == "confirmed",
+            SpaceBooking.start_minutes < end,
+            SpaceBooking.end_minutes > start,
+        )
+        .limit(1)
+    )
+
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{space.name} ya está reservada de {to_hhmm(conflict.start_minutes)} "
+                f"a {to_hhmm(conflict.end_minutes)}."
+            ),
+        )
+
+    booking = SpaceBooking(
+        space_id=space.id,
+        user_id=user.id,
+        title=title,
+        notes=notes,
+        booking_date=day,
+        start_minutes=start,
+        end_minutes=end,
+    )
+
+    db.add(booking)
+    db.flush()
+
+    return booking, space
+
 
 @app.get("/spaces", response_model=list[SpaceOut])
 def list_spaces(
@@ -3392,74 +3474,17 @@ def create_booking(
     user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
-    space = db.get(Space, data.space_id)
-
-    if not space or not space.is_active:
-        raise HTTPException(status_code=404, detail="Este espacio no está disponible.")
-
-    start = to_minutes(data.start_time)
-    end = to_minutes(data.end_time)
-
-    if end <= start:
-        raise HTTPException(status_code=400, detail="La hora de fin debe ser posterior a la de inicio.")
-
-    if start % 15 or end % 15:
-        raise HTTPException(status_code=400, detail="Las reservas son en bloques de 15 minutos.")
-
-    if start < space.open_minutes or end > space.close_minutes:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Este espacio está disponible de {to_hhmm(space.open_minutes)} "
-                f"a {to_hhmm(space.close_minutes)}."
-            ),
-        )
-
-    open_days = [int(d) for d in space.open_days.split(",") if d != ""]
-
-    if data.booking_date.weekday() not in open_days:
-        raise HTTPException(status_code=400, detail="Este espacio no abre ese día.")
-
-    now_local = get_local_now()
-    now_minutes = now_local.hour * 60 + now_local.minute
-
-    if data.booking_date < now_local.date() or (
-        data.booking_date == now_local.date() and start < now_minutes
-    ):
-        raise HTTPException(status_code=400, detail="No puedes reservar en el pasado.")
-
-    conflict = db.scalar(
-        select(SpaceBooking)
-        .where(
-            SpaceBooking.space_id == space.id,
-            SpaceBooking.booking_date == data.booking_date,
-            SpaceBooking.status == "confirmed",
-            SpaceBooking.start_minutes < end,
-            SpaceBooking.end_minutes > start,
-        )
-        .limit(1)
+    booking, space = book_space(
+        db,
+        user,
+        data.space_id,
+        data.booking_date,
+        to_minutes(data.start_time),
+        to_minutes(data.end_time),
+        data.title.strip(),
+        (data.notes or "").strip() or None,
     )
 
-    if conflict:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Ese horario ya está reservado "
-                f"({to_hhmm(conflict.start_minutes)} a {to_hhmm(conflict.end_minutes)})."
-            ),
-        )
-
-    booking = SpaceBooking(
-        space_id=space.id,
-        user_id=user.id,
-        title=data.title.strip(),
-        notes=(data.notes or "").strip() or None,
-        booking_date=data.booking_date,
-        start_minutes=start,
-        end_minutes=end,
-    )
-
-    db.add(booking)
     db.commit()
     db.refresh(booking)
 
@@ -3519,6 +3544,14 @@ def purge_user(db: Session, user: User) -> None:
     db.execute(update(VacationRequest).where(VacationRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
     db.execute(update(PermissionRequest).where(PermissionRequest.reviewed_by_id == uid).values(reviewed_by_id=None))
     db.execute(delete(QrSession).where(QrSession.created_by_id == uid))
+
+    own_posts = db.scalars(select(Post.id).where(Post.author_id == uid)).all()
+
+    if own_posts:
+        db.execute(delete(PostResponse).where(PostResponse.post_id.in_(own_posts)))
+        db.execute(delete(Post).where(Post.id.in_(own_posts)))
+
+    db.execute(delete(PostResponse).where(PostResponse.user_id == uid))
 
     # Los datos propios del usuario se eliminan
     for model in (
@@ -4536,6 +4569,640 @@ def report_export(
         "filename": f"asistencia_{data.start:%Y%m%d}_{data.end:%Y%m%d}.xlsx",
         "content": base64.b64encode(buffer.getvalue()).decode(),
     }
+
+# =========================================================
+# COMUNICADOS Y REUNIONES
+# =========================================================
+
+
+@dataclass
+class AudienceContext:
+    users: dict[int, User]               # usuarios activos
+    departments: dict[int, str | None]
+    positions: dict[int, str | None]
+    children: dict[int, list[int]]       # jefe -> reportes directos
+
+
+def audience_context(db: Session) -> AudienceContext:
+    users = {u.id: u for u in db.scalars(select(User).where(User.is_active.is_(True))).all()}
+    profiles = db.scalars(select(EmployeeProfile)).all()
+    children: dict[int, list[int]] = {}
+
+    for profile in profiles:
+        if profile.manager_id:
+            children.setdefault(profile.manager_id, []).append(profile.user_id)
+
+    return AudienceContext(
+        users=users,
+        departments={p.user_id: p.department for p in profiles},
+        positions={p.user_id: p.position for p in profiles},
+        children=children,
+    )
+
+
+def team_of(user_id: int, ctx: AudienceContext) -> set[int]:
+    """Todas las personas que dependen de alguien, directa o indirectamente."""
+
+    result: set[int] = set()
+    pending = list(ctx.children.get(user_id, []))
+
+    while pending:
+        member = pending.pop()
+
+        if member not in result:
+            result.add(member)
+            pending.extend(ctx.children.get(member, []))
+
+    return result
+
+
+def audience_members(post: Post, ctx: AudienceContext) -> set[int]:
+    active = set(ctx.users)
+
+    if post.audience == "team":
+        return (team_of(post.author_id, ctx) | {post.author_id}) & active
+
+    if post.audience.startswith("dept:"):
+        name = post.audience[5:]
+        return {uid for uid in active if ctx.departments.get(uid) == name} | {post.author_id}
+
+    return active
+
+
+def audience_label(audience: str) -> str:
+    if audience == "team":
+        return "Equipo de trabajo"
+
+    if audience.startswith("dept:"):
+        return audience[5:]
+
+    return "Toda la empresa"
+
+
+def can_publish(user: User, ctx: AudienceContext) -> bool:
+    return user.role == "admin" or bool(ctx.children.get(user.id))
+
+
+def can_see(post: Post, user: User, ctx: AudienceContext) -> bool:
+    return user.role == "admin" or user.id == post.author_id or user.id in audience_members(post, ctx)
+
+
+def check_audience(audience: str, user: User, ctx: AudienceContext) -> None:
+    has_team = bool(ctx.children.get(user.id))
+
+    if audience == "team" and has_team:
+        return
+
+    if user.role == "admin":
+        departments = {d for d in ctx.departments.values() if d}
+
+        if audience == "all" or (audience.startswith("dept:") and audience[5:] in departments):
+            return
+    else:
+        own = ctx.departments.get(user.id)
+
+        if own and audience == f"dept:{own}":
+            return
+
+    raise HTTPException(status_code=400, detail="No puedes publicar para esa audiencia.")
+
+
+def cancel_post_booking(db: Session, post: Post) -> None:
+    if post.booking_id:
+        booking = db.get(SpaceBooking, post.booking_id)
+
+        if booking and booking.status == "confirmed":
+            booking.status = "cancelled"
+
+        post.booking_id = None
+
+
+def apply_post(db: Session, post: Post, data: PostIn, author: User) -> bool:
+    """Copia los datos a la publicación. Devuelve True si cambió el horario de la reunión."""
+
+    post.kind = data.kind
+    post.title = data.title.strip()
+    post.body = data.body.strip()
+    post.image = data.image
+    post.audience = data.audience
+    post.pinned = data.pinned if author.role == "admin" else False
+
+    if data.kind != "meeting":
+        cancel_post_booking(db, post)
+        post.meeting_date = post.start_minutes = post.end_minutes = None
+        post.location = post.meeting_url = None
+        post.space_id = None
+        return False
+
+    start = to_minutes(data.start_time)
+    end = to_minutes(data.end_time)
+
+    schedule_changed = (post.meeting_date, post.start_minutes, post.end_minutes) != (
+        data.meeting_date,
+        start,
+        end,
+    )
+
+    needs_new_booking = data.space_id and (schedule_changed or data.space_id != post.space_id or not post.booking_id)
+
+    if needs_new_booking or not data.space_id:
+        cancel_post_booking(db, post)
+
+    if needs_new_booking:
+        booking, _ = book_space(
+            db,
+            db.get(User, post.author_id) or author,
+            data.space_id,
+            data.meeting_date,
+            start,
+            end,
+            data.title.strip(),
+            "Reunión publicada en Comunicados",
+        )
+        post.booking_id = booking.id
+
+    post.meeting_date = data.meeting_date
+    post.start_minutes = start
+    post.end_minutes = end
+    post.space_id = data.space_id
+    post.location = (data.location or "").strip() or None
+    post.meeting_url = (data.meeting_url or "").strip() or None
+
+    return schedule_changed
+
+
+def notify_post(db: Session, post: Post, ctx: AudienceContext, title: str, key: str) -> None:
+    author = ctx.users.get(post.author_id)
+    when = (
+        f" · {post.meeting_date:%d/%m} a las {to_hhmm(post.start_minutes)}"
+        if post.kind == "meeting" and post.meeting_date
+        else ""
+    )
+
+    for user_id in audience_members(post, ctx) - {post.author_id}:
+        create_notification(
+            db,
+            user_id,
+            "company",
+            title,
+            f"{author.full_name if author else 'Dirección'}: {post.title}{when}",
+            "news",
+            key,
+        )
+
+
+def build_posts_out(db: Session, posts: list[Post], user: User, ctx: AudienceContext) -> list[PostOut]:
+    if not posts:
+        return []
+
+    ids = [p.id for p in posts]
+    counts = {pid: {"seen": 0, "yes": 0, "no": 0, "maybe": 0} for pid in ids}
+    mine: dict[int, str] = {}
+
+    for response in db.scalars(select(PostResponse).where(PostResponse.post_id.in_(ids))).all():
+        counts[response.post_id][response.response] = counts[response.post_id].get(response.response, 0) + 1
+
+        if response.user_id == user.id:
+            mine[response.post_id] = response.response
+
+    author_ids = {p.author_id for p in posts}
+    authors = {u.id: u for u in db.scalars(select(User).where(User.id.in_(author_ids))).all()}
+
+    space_ids = {p.space_id for p in posts if p.space_id}
+    spaces = (
+        {s.id: s.name for s in db.scalars(select(Space).where(Space.id.in_(space_ids))).all()}
+        if space_ids
+        else {}
+    )
+
+    result = []
+
+    for post in posts:
+        author = authors.get(post.author_id)
+
+        result.append(
+            PostOut(
+                id=post.id,
+                kind=post.kind,
+                title=post.title,
+                body=post.body,
+                image=post.image,
+                pinned=post.pinned,
+                audience=post.audience,
+                audience_label=audience_label(post.audience),
+                created_at=post.created_at,
+                updated_at=post.updated_at,
+                author=PostAuthorOut(
+                    id=post.author_id,
+                    full_name=author.full_name if author else "Usuario",
+                    avatar=author.avatar if author else None,
+                    position=ctx.positions.get(post.author_id),
+                ),
+                meeting_date=post.meeting_date,
+                start_time=to_hhmm(post.start_minutes) if post.start_minutes is not None else None,
+                end_time=to_hhmm(post.end_minutes) if post.end_minutes is not None else None,
+                location=post.location,
+                meeting_url=post.meeting_url,
+                space_id=post.space_id,
+                space_name=spaces.get(post.space_id),
+                counts=counts[post.id],
+                my_response=mine.get(post.id),
+                audience_size=len(audience_members(post, ctx) - {post.author_id}),
+                can_manage=user.role == "admin" or user.id == post.author_id,
+            )
+        )
+
+    return result
+
+
+def sync_meeting_reminders(db: Session, user: User) -> None:
+    """Recordatorio 1 hora antes, para quien confirmó (asistiré o tal vez)."""
+
+    now_local = get_local_now()
+    now_minutes = now_local.hour * 60 + now_local.minute
+
+    meetings = db.scalars(
+        select(Post)
+        .join(PostResponse, PostResponse.post_id == Post.id)
+        .where(
+            PostResponse.user_id == user.id,
+            PostResponse.response.in_(["yes", "maybe"]),
+            Post.kind == "meeting",
+            Post.meeting_date == now_local.date(),
+            Post.start_minutes > now_minutes,
+            Post.start_minutes <= now_minutes + 60,
+        )
+    ).all()
+
+    for post in meetings:
+        create_notification(
+            db,
+            user.id,
+            "meeting_reminder",
+            "Tu reunión empieza pronto",
+            f"{post.title} · hoy a las {to_hhmm(post.start_minutes)}",
+            "news",
+            f"reminder-{post.id}",
+        )
+
+
+@app.get("/posts/meta", response_model=PostsMetaOut)
+def posts_meta(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    is_admin = user.role == "admin"
+    own = ctx.departments.get(user.id)
+
+    return PostsMetaOut(
+        can_publish=can_publish(user, ctx),
+        can_target_all=is_admin,
+        departments=(
+            sorted({d for d in ctx.departments.values() if d})
+            if is_admin
+            else ([own] if own else [])
+        ),
+        has_team=bool(ctx.children.get(user.id)),
+        is_admin=is_admin,
+    )
+
+
+@app.get("/posts", response_model=list[PostOut])
+def list_posts(
+    kind: str | None = None,
+    upcoming: bool = False,
+    limit: int = 20,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    query = select(Post)
+
+    if upcoming:
+        query = query.where(
+            Post.kind == "meeting",
+            Post.meeting_date >= get_work_date(),
+        ).order_by(Post.meeting_date, Post.start_minutes)
+    else:
+        if kind in ("announcement", "meeting"):
+            query = query.where(Post.kind == kind)
+
+        query = query.order_by(Post.pinned.desc(), Post.created_at.desc())
+
+    visible = [p for p in db.scalars(query).all() if can_see(p, user, ctx)]
+
+    return build_posts_out(db, visible[: max(1, min(limit, 100))], user, ctx)
+
+
+@app.post("/posts", response_model=PostOut)
+def create_post(
+    data: PostIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+
+    if not can_publish(user, ctx):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo administradores y personas con equipo a su cargo pueden publicar.",
+        )
+
+    check_audience(data.audience, user, ctx)
+
+    if data.image:
+        validate_avatar(data.image, 1_000_000)
+
+    post = Post(author_id=user.id)
+    apply_post(db, post, data, user)
+
+    db.add(post)
+    db.flush()
+
+    notify_post(
+        db,
+        post,
+        ctx,
+        "Te invitaron a una reunión" if post.kind == "meeting" else "Nuevo comunicado",
+        f"post-{post.id}",
+    )
+
+    db.commit()
+    db.refresh(post)
+
+    return build_posts_out(db, [post], user, ctx)[0]
+
+
+@app.put("/posts/{post_id}", response_model=PostOut)
+def update_post(
+    post_id: int,
+    data: PostIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    post = db.get(Post, post_id)
+
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    if user.role != "admin" and user.id != post.author_id:
+        raise HTTPException(status_code=403, detail="No puedes editar esta publicación.")
+
+    check_audience(data.audience, user, ctx)
+
+    if data.image and data.image != post.image:
+        validate_avatar(data.image, 1_000_000)
+
+    schedule_changed = apply_post(db, post, data, user)
+
+    if post.kind == "meeting" and schedule_changed:
+        notify_post(
+            db,
+            post,
+            ctx,
+            "Cambió el horario de una reunión",
+            f"post-{post.id}-{int(datetime.now(timezone.utc).timestamp())}",
+        )
+
+    db.commit()
+    db.refresh(post)
+
+    return build_posts_out(db, [post], user, ctx)[0]
+
+
+@app.delete("/posts/{post_id}")
+def delete_post(
+    post_id: int,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    post = db.get(Post, post_id)
+
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    if user.role != "admin" and user.id != post.author_id:
+        raise HTTPException(status_code=403, detail="No puedes eliminar esta publicación.")
+
+    cancel_post_booking(db, post)
+    db.execute(delete(PostResponse).where(PostResponse.post_id == post.id))
+    db.delete(post)
+    db.commit()
+
+    return {"ok": True}
+
+
+@app.post("/posts/{post_id}/respond", response_model=PostOut)
+def respond_post(
+    post_id: int,
+    data: RespondIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    post = db.get(Post, post_id)
+
+    if not post or not can_see(post, user, ctx):
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    allowed = {"seen"} if post.kind == "announcement" else {"yes", "no", "maybe"}
+
+    if data.response != "clear" and data.response not in allowed:
+        raise HTTPException(status_code=400, detail="Respuesta inválida.")
+
+    if post.kind == "meeting" and post.meeting_date and post.meeting_date < get_work_date():
+        raise HTTPException(status_code=409, detail="Esta reunión ya pasó.")
+
+    existing = db.scalar(
+        select(PostResponse).where(
+            PostResponse.post_id == post.id,
+            PostResponse.user_id == user.id,
+        )
+    )
+
+    if data.response == "clear":
+        if existing:
+            db.delete(existing)
+    else:
+        if existing is None:
+            existing = PostResponse(post_id=post.id, user_id=user.id)
+            db.add(existing)
+
+        existing.response = data.response
+        existing.comment = (data.comment or "").strip() or None
+
+    db.commit()
+
+    return build_posts_out(db, [post], user, ctx)[0]
+
+
+@app.get("/posts/{post_id}/responses", response_model=list[ResponsePersonOut])
+def post_responses(
+    post_id: int,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    post = db.get(Post, post_id)
+
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    if user.role != "admin" and user.id != post.author_id:
+        raise HTTPException(status_code=403, detail="Solo el autor puede ver las respuestas.")
+
+    responses = {
+        r.user_id: r
+        for r in db.scalars(select(PostResponse).where(PostResponse.post_id == post.id)).all()
+    }
+
+    people_ids = (audience_members(post, ctx) - {post.author_id}) | set(responses)
+    order = {"yes": 0, "seen": 0, "maybe": 1, "no": 2, None: 3}
+    result = []
+
+    for user_id in people_ids:
+        person = ctx.users.get(user_id) or db.get(User, user_id)
+
+        if not person:
+            continue
+
+        response = responses.get(user_id)
+
+        result.append(
+            ResponsePersonOut(
+                user_id=user_id,
+                full_name=person.full_name,
+                avatar=person.avatar,
+                position=ctx.positions.get(user_id),
+                response=response.response if response else None,
+                comment=response.comment if response else None,
+            )
+        )
+
+    result.sort(key=lambda r: (order.get(r.response, 3), r.full_name))
+
+    return result
+
+# =========================================================
+# CALENDARIO
+# =========================================================
+
+
+@app.get("/calendar", response_model=list[CalendarEventOut])
+def calendar_events(
+    start: date,
+    end: date,
+    team: bool = False,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    if end < start or (end - start).days > 120:
+        raise HTTPException(status_code=400, detail="Rango de fechas inválido (máximo 120 días).")
+
+    events: list[CalendarEventOut] = []
+
+    # Festivos
+    for holiday in db.scalars(
+        select(Holiday).where(Holiday.holiday_date >= start, Holiday.holiday_date <= end)
+    ).all():
+        events.append(CalendarEventOut(
+            id=f"holiday-{holiday.id}", type="holiday", title=holiday.name,
+            start_date=holiday.holiday_date, end_date=holiday.holiday_date, page="calendar",
+        ))
+
+    # Mis vacaciones y permisos (aprobados y pendientes)
+    for model, kind, page in ((VacationRequest, "vacation", "vacations"), (PermissionRequest, "permission", "attendance")):
+        for item in db.scalars(
+            select(model).where(
+                model.user_id == user.id,
+                model.status.in_(["approved", "pending"]),
+                model.start_date <= end,
+                model.end_date >= start,
+            )
+        ).all():
+            label = "Vacaciones" if kind == "vacation" else (
+                "Permiso con goce" if item.kind == "paid" else "Permiso sin goce"
+            )
+
+            events.append(CalendarEventOut(
+                id=f"{kind}-{item.id}", type=kind, title=label,
+                subtitle="Pendiente de aprobación" if item.status == "pending" else item.reason,
+                start_date=max(item.start_date, start), end_date=min(item.end_date, end),
+                page=page, pending=item.status == "pending",
+            ))
+
+    # Ausencias del equipo (solo admin)
+    if team and user.role == "admin":
+        names = {u.id: u.full_name for u in db.scalars(select(User)).all()}
+
+        for model, label in ((VacationRequest, "Vacaciones"), (PermissionRequest, "Permiso")):
+            for item in db.scalars(
+                select(model).where(
+                    model.user_id != user.id,
+                    model.status == "approved",
+                    model.start_date <= end,
+                    model.end_date >= start,
+                )
+            ).all():
+                events.append(CalendarEventOut(
+                    id=f"team-{label}-{item.id}", type="team_absence",
+                    title=f"{names.get(item.user_id, 'Empleado')}: {label}",
+                    start_date=max(item.start_date, start), end_date=min(item.end_date, end),
+                    page="admin-requests",
+                ))
+
+    # Reuniones visibles para mí
+    ctx = audience_context(db)
+    meeting_bookings: set[int] = set()
+    space_names = {s.id: s.name for s in db.scalars(select(Space)).all()}
+
+    for post in db.scalars(
+        select(Post).where(
+            Post.kind == "meeting",
+            Post.meeting_date >= start,
+            Post.meeting_date <= end,
+        )
+    ).all():
+        if post.booking_id:
+            meeting_bookings.add(post.booking_id)
+
+        if not can_see(post, user, ctx):
+            continue
+
+        place = space_names.get(post.space_id) or post.location or ("En línea" if post.meeting_url else None)
+
+        events.append(CalendarEventOut(
+            id=f"meeting-{post.id}", type="meeting", title=post.title, subtitle=place,
+            start_date=post.meeting_date, end_date=post.meeting_date,
+            start_time=to_hhmm(post.start_minutes), end_time=to_hhmm(post.end_minutes),
+            page="news",
+        ))
+
+    # Mis reservas de sala (sin repetir las de reuniones)
+    for booking in db.scalars(
+        select(SpaceBooking).where(
+            SpaceBooking.user_id == user.id,
+            SpaceBooking.status == "confirmed",
+            SpaceBooking.booking_date >= start,
+            SpaceBooking.booking_date <= end,
+        )
+    ).all():
+        if booking.id in meeting_bookings:
+            continue
+
+        events.append(CalendarEventOut(
+            id=f"booking-{booking.id}", type="booking", title=booking.title,
+            subtitle=space_names.get(booking.space_id),
+            start_date=booking.booking_date, end_date=booking.booking_date,
+            start_time=to_hhmm(booking.start_minutes), end_time=to_hhmm(booking.end_minutes),
+            page="spaces",
+        ))
+
+    events.sort(key=lambda e: (e.start_date, e.start_time or ""))
+
+    return events
 
 # =========================================================
 # FRONTEND ESTÁTICO

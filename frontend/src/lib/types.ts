@@ -132,6 +132,8 @@ export type Page =
     | 'admin-holidays'
     | 'team'
     | 'admin-reports'
+    | 'news'
+    | 'calendar'
 
 export type Branding = {
     company_name: string
@@ -263,4 +265,61 @@ export type ReportPreview = {
     totals: Record<string, number>
     hours: number
     late_minutes: number
+}
+
+export type PostAuthor = { id: number; full_name: string; avatar: string | null; position: string | null }
+
+export type Post = {
+    id: number
+    kind: 'announcement' | 'meeting'
+    title: string
+    body: string
+    image: string | null
+    pinned: boolean
+    audience: string
+    audience_label: string
+    created_at: string
+    updated_at: string
+    author: PostAuthor
+    meeting_date: string | null
+    start_time: string | null
+    end_time: string | null
+    location: string | null
+    meeting_url: string | null
+    space_id: number | null
+    space_name: string | null
+    counts: Record<string, number>
+    my_response: string | null
+    audience_size: number
+    can_manage: boolean
+}
+
+export type PostsMeta = {
+    can_publish: boolean
+    can_target_all: boolean
+    departments: string[]
+    has_team: boolean
+    is_admin: boolean
+}
+
+export type ResponsePerson = {
+    user_id: number
+    full_name: string
+    avatar: string | null
+    position: string | null
+    response: string | null
+    comment: string | null
+}
+
+export type CalendarEvent = {
+    id: string
+    type: 'holiday' | 'vacation' | 'permission' | 'meeting' | 'booking' | 'team_absence'
+    title: string
+    subtitle: string | null
+    start_date: string
+    end_date: string
+    start_time: string | null
+    end_time: string | null
+    page: Page
+    pending: boolean
 }

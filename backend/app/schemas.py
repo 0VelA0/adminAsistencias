@@ -670,5 +670,103 @@ class ReportPreviewOut(BaseModel):
     totals: dict[str, int]
     hours: float
     late_minutes: int
+
+class PostIn(BaseModel):
+    kind: str
+    title: str = Field(min_length=3, max_length=150)
+    body: str = Field(default="", max_length=5000)
+    image: str | None = Field(default=None, max_length=1_500_000)
+    pinned: bool = False
+    audience: str = Field(default="all", max_length=120)
+    meeting_date: date | None = None
+    start_time: str | None = Field(default=None, pattern=HHMM)
+    end_time: str | None = Field(default=None, pattern=HHMM)
+    location: str | None = Field(default=None, max_length=150)
+    meeting_url: str | None = Field(default=None, max_length=300)
+    space_id: int | None = None
+
+    @model_validator(mode="after")
+    def valid_post(self):
+        if self.kind not in {"announcement", "meeting"}:
+            raise ValueError("Tipo de publicación inválido.")
+
+        if self.kind == "meeting":
+            if not self.meeting_date or not self.start_time or not self.end_time:
+                raise ValueError("La reunión necesita fecha, hora de inicio y hora de fin.")
+
+            if to_minutes(self.end_time) <= to_minutes(self.start_time):
+                raise ValueError("La reunión debe terminar después de empezar.")
+
+        if self.meeting_url and not re.match(r"^https?://", self.meeting_url):
+            raise ValueError("El enlace debe empezar con http:// o https://")
+
+        return self
+
+
+class PostAuthorOut(BaseModel):
+    id: int
+    full_name: str
+    avatar: str | None = None
+    position: str | None = None
+
+
+class PostOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    image: str | None = None
+    pinned: bool
+    audience: str
+    audience_label: str
+    created_at: datetime
+    updated_at: datetime
+    author: PostAuthorOut
+    meeting_date: date | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    location: str | None = None
+    meeting_url: str | None = None
+    space_id: int | None = None
+    space_name: str | None = None
+    counts: dict[str, int]
+    my_response: str | None = None
+    audience_size: int
+    can_manage: bool
+
+
+class PostsMetaOut(BaseModel):
+    can_publish: bool
+    can_target_all: bool
+    departments: list[str]
+    has_team: bool
+    is_admin: bool
+
+
+class RespondIn(BaseModel):
+    response: str  # seen | yes | no | maybe | clear
+    comment: str | None = Field(default=None, max_length=300)
+
+
+class ResponsePersonOut(BaseModel):
+    user_id: int
+    full_name: str
+    avatar: str | None = None
+    position: str | None = None
+    response: str | None = None
+    comment: str | None = None
+
+
+class CalendarEventOut(BaseModel):
+    id: str
+    type: str  # holiday | vacation | permission | meeting | booking | team_absence
+    title: str
+    subtitle: str | None = None
+    start_date: date
+    end_date: date
+    start_time: str | None = None
+    end_time: str | None = None
+    page: str
+    pending: bool = False
     
 TokenOut.model_rebuild()

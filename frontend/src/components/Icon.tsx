@@ -5,7 +5,9 @@ export type IconName =
     | 'bell' | 'logout' | 'login' | 'switch' | 'palette' | 'user' | 'shield'
     | 'file' | 'pin' | 'check' | 'alert' | 'x' | 'trend' | 'pie' | 'building'
     | 'plus' | 'more' | 'calendar' | 'org' | 'search' | 'chevron' | 'minus' 
-    | 'target' | 'mail' | 'phone' | 'upload' | 'download' | 'briefcase'
+    | 'target' | 'mail' | 'phone' | 'upload' | 'download' | 'briefcase' 
+    | 'megaphone' | 'video' | 'image' | 'edit' | 'trash' | 'bookmark' | 'left' 
+    | 'right'
 
 const PATHS: Record<IconName, ReactNode> = {
     home: <><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
@@ -43,6 +45,14 @@ const PATHS: Record<IconName, ReactNode> = {
     upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
     download: <><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 12h18" /></>,
+    megaphone: <><path d="M3 10v4a1 1 0 0 0 1 1h3l7 4V5L7 9H4a1 1 0 0 0-1 1z" /><path d="M18 9a3 3 0 0 1 0 6" /></>,
+    video: <><rect x="3" y="6" width="13" height="12" rx="2" /><path d="M16 10l5-3v10l-5-3z" /></>,
+    image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 16l-5-5L5 20" /></>,
+    edit: <><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13 7l4 4" /></>,
+    trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />,
+    bookmark: <path d="M6 3h12v18l-6-4-6 4z" />,
+    left: <path d="M15 6l-6 6 6 6" />,
+    right: <path d="M9 6l6 6-6 6" />,
 }
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

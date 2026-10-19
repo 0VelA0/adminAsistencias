@@ -40,7 +40,7 @@ export function NotificationsCard({ token, initial, isAdmin }: { token: string; 
         { key: 'notify_attendance', label: 'Avisos de asistencia', hint: 'Salida sin registrar y correcciones de un administrador' },
         { key: 'notify_vacations', label: 'Vacaciones', hint: isAdmin ? 'Respuestas y nuevas solicitudes del equipo' : 'Respuestas a tus solicitudes' },
         { key: 'notify_permissions', label: 'Permisos', hint: isAdmin ? 'Respuestas y nuevas solicitudes del equipo' : 'Respuestas a tus solicitudes' },
-        { key: 'notify_company', label: 'Novedades de la empresa', hint: 'Comunicados y reuniones (próximamente)' },
+        { key: 'notify_company', label: 'Novedades de la empresa', hint: 'Comunicados, invitaciones y recordatorios de reuniones' },
         { key: 'notify_weekly', label: 'Resumen semanal', hint: 'Cada lunes, el resumen de tu semana' },
     ] as const satisfies readonly { key: keyof NotificationSettings; label: string; hint: string }[]
 
