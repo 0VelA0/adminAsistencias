@@ -49,8 +49,7 @@ export function StationQrPanel() {
                 <h2>Asistencia diaria</h2>
 
                 <p className="muted">
-                    Imprime este QR y colócalo en recepción. No caduca: abre la estación de
-                    asistencia y el sistema valida sesión y GPS.
+                    Imprime este QR y colócalo en recepción. No caduca: Al abrir la estacion de asistencia, el sistema valida la sesion del usuario y verifica su ubicacion mediante el GPS.
                 </p>
 
                 <button type="button" onClick={download} disabled={busy}>
