@@ -84,7 +84,7 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
                 <div>
                     <p className="eyebrow">EQUIPO</p>
                     <h2>Nuestro equipo</h2>
-                    <p className="muted">Conoce quién es quién y cómo está organizada la empresa.</p>
+                    <p className="muted">Conoce las personas que hacen posible el funcionamiento de la empresa.</p>
                 </div>
 
                 <div className="filter-tabs" role="tablist">
