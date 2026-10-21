@@ -2149,7 +2149,7 @@ button.danger {
 .admin-stats > *,
 .today-grid > *,
 .settings-grid > * {
-  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) both;
+  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) backwards;
 }
 
 .page-content > :nth-child(2),
