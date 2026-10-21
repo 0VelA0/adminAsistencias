@@ -89,25 +89,25 @@ export function NewsPage({ token }: { token: string }) {
                     </button>
                 )}
             </div>
+            
+            <div className="filter-tabs">
+                {FILTERS.map(f => (
+                    <button
+                        key={f.value}
+                        type="button"
+                        className={filter === f.value ? 'active' : ''}
+                        onClick={() => {
+                            setFilter(f.value)
+                            setLimit(20)
+                        }}
+                    >
+                        {f.label}
+                    </button>
+                ))}
+            </div>
 
             <div className="news-layout">
                 <div className="news-feed">
-                    <div className="filter-tabs">
-                        {FILTERS.map(f => (
-                            <button
-                                key={f.value}
-                                type="button"
-                                className={filter === f.value ? 'active' : ''}
-                                onClick={() => {
-                                    setFilter(f.value)
-                                    setLimit(20)
-                                }}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
-                    </div>
-
                     <StateView state={posts}>
                         {list =>
                             list.length === 0 ? (
