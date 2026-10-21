@@ -168,7 +168,7 @@ export function ManualRecordModal({
                             <select value={status} onChange={e => setStatus(e.target.value as 'auto' | 'normal' | 'late')}>
                                 <option value="auto">Automático (según horario)</option>
                                 <option value="normal">Puntual</option>
-                                <option value="late">Retraso</option>
+                                <option value="late">Retardo</option>
                             </select>
                         </label>
                     )}

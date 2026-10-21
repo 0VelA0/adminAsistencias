@@ -91,7 +91,7 @@ export function RecordTable({
                                         }`}
                                     >
                                         {record.status === 'late'
-                                            ? 'Retraso'
+                                            ? 'Retardo'
                                             : 'Normal'}
                                     </span>
                                 </td>

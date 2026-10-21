@@ -76,7 +76,7 @@ function AdminHome({
                         <strong>
                             {data ? data.registered.filter(r => r.status === 'late').length : '–'}
                         </strong>
-                        <span>Retrasos hoy</span>
+                        <span>Retardos hoy</span>
                     </div>
                 </article>
 

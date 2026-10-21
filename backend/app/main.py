@@ -3134,7 +3134,7 @@ def sync_weekly_summary(
         "Resumen de tu semana",
         (
             f"Del {monday:%d/%m} al {sunday:%d/%m}: {punctual} puntuales, "
-            f"{late} con retraso, {absent} faltas y {seconds / 3600:.1f} h trabajadas."
+            f"{late} con retardo, {absent} faltas y {seconds / 3600:.1f} h trabajadas."
         ),
         "history",
         key,

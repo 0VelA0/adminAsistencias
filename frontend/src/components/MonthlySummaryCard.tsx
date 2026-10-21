@@ -86,7 +86,7 @@ export function MonthlySummaryCard({
 
             <div className="donut-legend">
                 <span><i className="dot ok" /> Puntual: {punctual}</span>
-                <span><i className="dot late" /> Retraso: {late}</span>
+                <span><i className="dot late" /> Retardo: {late}</span>
             </div>
 
             <p className="donut-level">

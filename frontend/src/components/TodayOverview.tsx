@@ -104,7 +104,7 @@ export function TodayOverview({ state }: { state: AsyncState<TodayOverviewData> 
                                         }`}
                                         badge={
                                             item.status === 'late' ? (
-                                                <span className="badge late">Retraso</span>
+                                                <span className="badge late">Retardo</span>
                                             ) : undefined
                                         }
                                     />

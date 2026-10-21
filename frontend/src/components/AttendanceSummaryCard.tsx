@@ -39,7 +39,7 @@ export function AttendanceSummaryCard({
 
             <div className="donut-legend">
                 <span><i className="dot ok" /> Puntual: {pct(summary.punctual)}%</span>
-                <span><i className="dot late" /> Retrasos: {pct(summary.late)}%</span>
+                <span><i className="dot late" /> Retardos: {pct(summary.late)}%</span>
                 <span><i className="dot absent" /> Faltas: {pct(summary.absent)}%</span>
             </div>
 

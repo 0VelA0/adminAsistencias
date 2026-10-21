@@ -12,6 +12,7 @@ import { RecordTable } from '../components/RecordTable'
 import { AttendanceCard } from '../components/AttendanceCard'
 import { VacationSummaryCard } from '../components/VacationSummaryCard'
 import { PendingRequestsCard } from '../components/PendingRequestsCard'
+import { NewsTicker } from '../components/NewsTicker'
 
 
 export function EmployeePage({
@@ -162,6 +163,8 @@ export function EmployeePage({
                 />
 
             </section>
+
+            <NewsTicker token={token} onOpen={() => onNavigate('news')} />
 
             <section>
                 <div className="section-title">

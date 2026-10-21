@@ -39,7 +39,7 @@ export function useAttendanceRegister({
 
             setMessage(
                 `${record.kind === 'entry' ? 'Entrada' : 'Salida'} registrada correctamente${
-                    record.status === 'late' ? ' — marcada como retraso.' : '.'
+                    record.status === 'late' ? ' — marcada como retardo.' : '.'
                 }`
             )
 

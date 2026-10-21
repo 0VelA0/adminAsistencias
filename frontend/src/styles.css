@@ -742,69 +742,84 @@ button.danger {
 
 /* ---------- 6. ASISTENCIA ---------- */
 
+.attendance-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .attendance-status {
   display: grid;
-  gap: 12px;
+  flex: 1;
+  align-content: center;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .attendance-action {
   display: grid;
-  grid-template-columns: 34px 1fr auto;
+  grid-template-columns: 42px 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-alt);
 }
 
 .attendance-action > div {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .attendance-action strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .attendance-action span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 .attendance-action button {
-  padding: 7px 10px;
-  font-size: 11px;
+  padding: 8px 14px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
 .attendance-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
   font-weight: 800;
 }
-
-.attendance-icon.entry { background: var(--ok-bg);  color: var(--ok); }
-.attendance-icon.exit  { background: var(--bad-bg); color: var(--bad); }
 
 .attendance-footer {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 5px;
-  margin: 18px -18px -18px;
-  padding: 9px;
+  gap: 6px;
+  margin: auto -18px -18px; /* siempre pegado al fondo */
+  padding: 10px;
   border-radius: 0 0 var(--radius) var(--radius);
   background: var(--surface-alt);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 .attendance-vacation {
-  padding: 14px;
-  border-radius: 10px;
+  display: grid;
+  flex: 1;
+  align-content: center;
+  padding: 18px;
+  border-radius: 12px;
   background: #fff8e6;
 }
+
+.attendance-icon.entry { background: var(--ok-bg);  color: var(--ok); }
+.attendance-icon.exit  { background: var(--bad-bg); color: var(--bad); }
 
 .attendance-vacation strong {
   font-size: 12px;
@@ -2263,7 +2278,7 @@ button:active:not(:disabled) {
   color: var(--text);
   font-weight: 400;
   text-align: center;
-  animation: fade-up .35s cubic-bezier(.2, .7, .2, 1) both;
+  animation: fade-up .35s cubic-bezier(.2, .7, .2, 1) backwards;
   transition: transform .2s, box-shadow .2s, border-color .2s;
 }
 
@@ -2335,7 +2350,7 @@ button:active:not(:disabled) {
   border-radius: 10px;
   background: var(--surface);
   box-shadow: 0 12px 30px rgba(7, 21, 38, .15);
-  animation: fade-up .18s ease-out both;
+  animation: fade-up .18s ease-out backwards;
 }
 
 .org-results button {
@@ -2421,7 +2436,7 @@ button:active:not(:disabled) {
 .org-tree ul {
   position: relative;
   padding-top: 28px;
-  animation: fade-up .3s ease-out both;
+  animation: fade-up .3s ease-out backwards;
 }
 
 .org-tree li {
@@ -2627,7 +2642,7 @@ button:active:not(:disabled) {
   gap: 6px;
   padding-top: 12px;
   text-align: center;
-  animation: fade-up .3s ease-out both;
+  animation: fade-up .3s ease-out backwards;
 }
 
 .drawer-hero h2 {
@@ -2842,7 +2857,7 @@ button:active:not(:disabled) {
 .step-panel {
   display: grid;
   gap: 14px;
-  animation: fade-up .3s ease-out both;
+  animation: fade-up .3s ease-out backwards;
 }
 
 .dropzone {
@@ -2909,7 +2924,7 @@ button:active:not(:disabled) {
   border-radius: 50%;
   background: var(--ok-bg);
   color: var(--ok);
-  animation: pop .45s cubic-bezier(.2, .7, .2, 1) both;
+  animation: pop .45s cubic-bezier(.2, .7, .2, 1) backwards;
 }
 
 .done-panel h3 {
@@ -2980,7 +2995,7 @@ button:active:not(:disabled) {
 
 .kpi-grid > * {
   min-width: 0;
-  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) both;
+  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) backwards;
 }
 
 .kpi-grid > :nth-child(2) { animation-delay: .04s; }
@@ -3104,7 +3119,7 @@ button:active:not(:disabled) {
   border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) both;
+  animation: fade-up .38s cubic-bezier(.2, .7, .2, 1) backwards;
   transition: box-shadow .2s;
 }
 
@@ -3205,7 +3220,7 @@ button:active:not(:disabled) {
   max-height: 460px;
   border-radius: 12px;
   object-fit: cover;
-  animation: fade-in .4s ease-out both;
+  animation: fade-in .4s ease-out backwards;
 }
 
 .post-image-preview {
@@ -3430,7 +3445,7 @@ button:active:not(:disabled) {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  animation: fade-in .3s ease-out both;
+  animation: fade-in .3s ease-out backwards;
 }
 
 .month-head {
@@ -3536,7 +3551,7 @@ button:active:not(:disabled) {
 .agenda-day {
   display: grid;
   gap: 6px;
-  animation: fade-up .35s ease-out both;
+  animation: fade-up .35s ease-out backwards;
 }
 
 .agenda-day h3 {
@@ -3580,6 +3595,195 @@ button:active:not(:disabled) {
 .drawer-day {
   margin: 4px 0 0;
   font-size: 20px;
+}
+
+/* ---------- 23. CARRUSEL DE COMUNICADOS ---------- */
+
+.news-ticker {
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.news-ticker .dashboard-card-title .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ticker {
+  margin: 0 -18px;
+  padding: 6px 18px 8px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+.ticker:not(.moving) {
+  overflow-x: auto;
+}
+
+.ticker-track {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+}
+
+.ticker.moving .ticker-track {
+  animation: ticker-scroll var(--ticker-duration, 40s) linear infinite;
+}
+
+.ticker.moving:hover .ticker-track,
+.ticker.moving:focus-within .ticker-track {
+  animation-play-state: paused;
+}
+
+/* Recorre exactamente la mitad (la lista original), más medio espacio entre tarjetas */
+@keyframes ticker-scroll {
+  to { transform: translateX(calc(-50% - 7px)); }
+}
+
+.ticker-card {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 8px;
+  width: 290px;
+  min-height: 160px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--surface), var(--primary-faint));
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+  transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s, border-color .25s;
+}
+
+.ticker-card:hover,
+.ticker-card:focus-visible {
+  transform: translateY(-4px) scale(1.01);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--line));
+  box-shadow: 0 14px 30px rgba(25, 48, 75, .12);
+}
+
+.ticker-card.meeting {
+  background: linear-gradient(160deg, var(--surface), color-mix(in srgb, var(--ok) 9%, #fff));
+}
+
+.ticker-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.ticker-card.meeting .ticker-kind {
+  color: var(--ok);
+}
+
+.ticker-kind em {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-style: normal;
+  letter-spacing: .04em;
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+.ticker-title,
+.ticker-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ticker-title {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.ticker-excerpt {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.ticker-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.ticker-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ticker-author > span {
+  display: grid;
+  min-width: 0;
+}
+
+.ticker-author b {
+  overflow: hidden;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ticker-author small {
+  font-size: 10px;
+}
+
+.ticker-skeleton {
+  display: flex;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.ticker-skeleton span {
+  flex-shrink: 0;
+  width: 290px;
+  height: 160px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--surface-alt) 0%, #fff 50%, var(--surface-alt) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker.moving {
+    overflow-x: auto;
+  }
+
+  .ticker.moving .ticker-track {
+    animation: none;
+  }
+
+  .ticker-clone {
+    display: none;
+  }
 }
 
 /* ---------- 14. RESPONSIVE ---------- */
@@ -4062,5 +4266,10 @@ button:active:not(:disabled) {
 
   .calendar-title {
     min-width: 0;
+  }
+
+  .ticker-card,
+  .ticker-skeleton span {
+    width: 250px;
   }
 }

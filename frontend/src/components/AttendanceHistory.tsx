@@ -31,7 +31,7 @@ export function AttendanceHistory({
         return all.filter(day =>
             [
                 formatDate(day.date),
-                day.status === 'late' ? 'retraso' : 'puntual',
+                day.status === 'late' ? 'Retardo' : 'puntual',
                 day.entry?.note ?? '',
                 day.exit?.note ?? '',
             ]
@@ -112,7 +112,7 @@ export function AttendanceHistory({
                                                         }`}
                                                     >
                                                         {day.status === 'late'
-                                                            ? 'Retraso'
+                                                            ? 'Retardo'
                                                             : 'Puntual'}
                                                     </span>
                                                 </td>

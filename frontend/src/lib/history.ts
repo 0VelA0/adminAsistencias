@@ -167,7 +167,7 @@ export function buildRows(
             title: 'Asistencia diaria',
             detail,
             amount: day.hours === '—' ? '—' : `${day.hours} h`,
-            label: late ? 'Retraso' : done ? 'Completado' : 'En curso',
+            label: late ? 'Retardo' : done ? 'Completado' : 'En curso',
             badge: late ? 'late' : done ? 'approved' : 'pending',
             lines,
         })
