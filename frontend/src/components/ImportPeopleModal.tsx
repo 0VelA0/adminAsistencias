@@ -109,11 +109,11 @@ export function ImportPeopleModal({
                 <p className="eyebrow">PERSONAL</p>
                 <h2>Importar personal desde Excel</h2>
 
-                <ol className="steps">
+                <ol className="stepper" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
                     {STEPS.map((label, i) => (
                         <li key={label} className={i < step ? 'done' : i === step ? 'active' : ''}>
-                            <span>{i < step ? <Icon name="check" size={13} /> : i + 1}</span>
-                            {label}
+                            <span className="step-dot">{i < step ? <Icon name="check" size={14} /> : i + 1}</span>
+                            <span className="step-label">{label}</span>
                         </li>
                     ))}
                 </ol>
@@ -176,7 +176,7 @@ export function ImportPeopleModal({
 
                             <div className="table-card">
                                 <div className="table-scroll">
-                                    <table className="data-table">
+                                    <table className="data-table import-table">
                                         <thead>
                                             <tr>
                                                 <th>Fila</th>

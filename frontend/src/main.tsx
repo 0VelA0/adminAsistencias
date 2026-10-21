@@ -192,6 +192,21 @@ function App() {
         setAdminView(false)
     }
 
+    const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === '1')
+
+    const toggleCollapsed = () =>
+        setCollapsed(current => {
+            const next = !current
+
+            try {
+                localStorage.setItem('sidebar_collapsed', next ? '1' : '0')
+            } catch {
+                /* sin almacenamiento, solo no se recuerda */
+            }
+
+            return next
+        })
+
     const goTo = (page: Page) => {
         const adminPage = page.startsWith('admin-') || page === 'users'
 
@@ -234,7 +249,7 @@ function App() {
 
 
     return (
-        <div className="app-layout">
+        <div className={`app-layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
 
             {!online && (
                 <div className="offline-banner" role="status">
@@ -249,6 +264,8 @@ function App() {
                 onPageChange={setActivePage}
                 onToggleAdmin={toggleAdmin}
                 onLogout={logout}
+                collapsed={collapsed}
+                onToggleCollapsed={toggleCollapsed}
             />
 
             <main className="app-main">

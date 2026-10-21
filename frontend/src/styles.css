@@ -417,6 +417,72 @@ button.danger {
 .avatar-md { width: 36px; height: 36px; font-size: 13px; }
 .avatar-lg { width: 72px; height: 72px; font-size: 24px; }
 
+.sidebar {
+  overflow-x: hidden;
+  transition: width .28s cubic-bezier(.2, .7, .2, 1);
+}
+
+.app-main {
+  transition: margin-left .28s cubic-bezier(.2, .7, .2, 1);
+}
+
+.sidebar-brand {
+  position: relative;
+}
+
+.sidebar-collapse {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--sidebar-hover);
+  color: var(--on-sidebar-muted);
+}
+
+.sidebar-collapse:hover {
+  background: var(--sidebar-active);
+  color: var(--on-sidebar);
+}
+
+@media (min-width: 761px) {
+  .app-layout.sidebar-collapsed {
+    --sidebar-w: 76px;
+  }
+
+  .sidebar-collapsed .sidebar-brand {
+    flex-direction: column;
+    gap: 10px;
+    padding: 6px 0 0;
+  }
+
+  .sidebar-collapsed .sidebar-collapse {
+    margin-left: 0;
+  }
+
+  .sidebar-collapsed .sidebar-brand-text,
+  .sidebar-collapsed .nav-label,
+  .sidebar-collapsed .sidebar-user > div:last-child {
+    display: none;
+  }
+
+  .sidebar-collapsed .sidebar-nav button,
+  .sidebar-collapsed .sidebar-mode,
+  .sidebar-collapsed .sidebar-logout {
+    justify-content: center;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .sidebar-collapsed .sidebar-user {
+    justify-content: center;
+    padding: 8px 0;
+  }
+}
+
 /* ---------- 4. HEADER ---------- */
 
 .dashboard-header {
@@ -2799,59 +2865,124 @@ button:active:not(:disabled) {
   box-shadow: var(--shadow);
 }
 
-.steps {
-  display: flex;
-  gap: 8px;
-  margin: 0;
+.stepper {
+  --dot: 34px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 4px 0 8px;
   padding: 0;
   list-style: none;
 }
 
-.steps li {
+/* Riel y "agua" que lo llena */
+.stepper::before,
+.stepper::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--dot) / 2 - 2px);
+  right: calc(100% / 6);
+  left: calc(100% / 6);
+  height: 4px;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.stepper::after {
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 40%, #fff),
+    var(--primary)
+  );
+  background-size: 200% 100%;
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left;
+  transition: transform .9s cubic-bezier(.2, .7, .2, 1);
+  animation: flow 1.6s linear infinite;
+}
+
+@keyframes flow {
+  to { background-position: -200% 0; }
+}
+
+.stepper li {
+  position: relative;
+  z-index: 1;
   display: flex;
-  flex: 1;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
+  transition: color .4s;
 }
 
-.steps li span {
+.step-dot {
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line);
+  width: var(--dot);
+  height: var(--dot);
+  overflow: hidden;
+  border: 2px solid var(--line);
   border-radius: 50%;
-  background: var(--surface-alt);
-  transition: background-color .25s, color .25s, border-color .25s;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 800;
+  transition: border-color .4s, color .4s;
 }
 
-.steps li.active,
-.steps li.done {
+/* El "agua": un cuadro redondeado que gira; su borde superior forma la ola */
+.step-dot::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 115%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  border-radius: 40%;
+  background: color-mix(in srgb, var(--primary) 35%, #fff);
+  transition: top 1s cubic-bezier(.2, .7, .2, 1), background-color .4s;
+  animation: liquid 3.5s linear infinite;
+}
+
+@keyframes liquid {
+  to { transform: rotate(360deg); }
+}
+
+.stepper li.active,
+.stepper li.done {
   color: var(--text);
 }
 
-.steps li.active span {
+.stepper li.active .step-dot {
   border-color: var(--primary);
-  background: var(--primary);
-  color: var(--on-primary);
+  color: var(--primary-strong);
 }
 
-.steps li.done span {
-  border-color: var(--ok-bg);
-  background: var(--ok-bg);
-  color: var(--ok);
+.stepper li.active .step-dot::before {
+  top: 38%; /* medio llenar, con oleaje */
 }
 
-.steps li:not(:last-child)::after {
-  content: '';
-  flex: 1;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--line);
+.stepper li.done .step-dot {
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.stepper li.done .step-dot::before {
+  top: -60%; /* lleno */
+  background: var(--ok);
+}
+
+.import-table th:first-child,
+.import-table td:first-child {
+  width: 1%;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .step-panel {
@@ -3856,12 +3987,8 @@ button:active:not(:disabled) {
     gap: 2px;
   }
 
-  .steps li {
-    font-size: 0; /* solo números en pantallas chicas */
-  }
-
-  .steps li span {
-    font-size: 12px;
+  .stepper .step-label {
+    font-size: 11px;
   }
 
   /* Barra de navegación inferior */
@@ -4271,5 +4398,9 @@ button:active:not(:disabled) {
   .ticker-card,
   .ticker-skeleton span {
     width: 250px;
+  }
+
+  .sidebar-collapse {
+    display: none;
   }
 }

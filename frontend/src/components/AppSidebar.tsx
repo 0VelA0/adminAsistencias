@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-
 import type { Page, User } from '../lib/types'
 import { useBranding } from '../lib/branding'
 import { Avatar } from './Avatar'
@@ -16,14 +15,16 @@ const EMPLOYEE_ITEMS: Item[] = [
   { page: 'news', icon: 'megaphone', label: 'Comunicados' },
   { page: 'calendar', icon: 'calendar', label: 'Calendario' },
   { page: 'history', icon: 'history', label: 'Historial' },
-  { page: 'spaces', icon: 'building', label: 'Espacios' },
   { page: 'team', icon: 'org', label: 'Equipo' },
+  { page: 'spaces', icon: 'building', label: 'Espacios' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
 const ADMIN_ITEMS: Item[] = [
   { page: 'admin-home', icon: 'home', label: 'Resumen' },
   { page: 'admin-requests', icon: 'clipboard', label: 'Solicitudes' },
+  { page: 'news', icon: 'megaphone', label: 'Comunicados' },
+  { page: 'calendar', icon: 'calendar', label: 'Calendario' },
   { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
   { page: 'admin-reports', icon: 'download', label: 'Reportes' },
   { page: 'team', icon: 'org', label: 'Equipo' },
@@ -33,14 +34,14 @@ const ADMIN_ITEMS: Item[] = [
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
-const MOBILE_SLOTS = 5
-
 const MIN_ITEM_WIDTH = 68
 
 export function AppSidebar({
   user,
   activePage,
   adminView,
+  collapsed,
+  onToggleCollapsed,
   onPageChange,
   onToggleAdmin,
   onLogout,
@@ -48,17 +49,20 @@ export function AppSidebar({
   user: User
   activePage: Page
   adminView: boolean
+  collapsed: boolean
+  onToggleCollapsed: () => void
   onPageChange: (page: Page) => void
   onToggleAdmin: () => void
   onLogout: () => void
 }) {
   const { branding } = useBranding()
+  const navRef = useRef<HTMLElement>(null)
   const [moreOpen, setMoreOpen] = useState(false)
 
-  const navRef = useRef<HTMLElement>(null)
   const items = adminView ? ADMIN_ITEMS : EMPLOYEE_ITEMS
   const [capacity, setCapacity] = useState(items.length)
 
+  // En la barra inferior del celular, muestra solo los que caben
   useEffect(() => {
     const nav = navRef.current
     if (!nav) return
@@ -85,6 +89,8 @@ export function AppSidebar({
     onPageChange(page)
   }
 
+  const tip = (label: string) => (collapsed ? label : undefined)
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -94,12 +100,23 @@ export function AppSidebar({
           <strong>{branding.company_name}</strong>
           {adminView && <span>Administración</span>}
         </div>
+
+        <button
+          type="button"
+          className="sidebar-collapse"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+          title={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+        >
+          <Icon name={collapsed ? 'right' : 'left'} size={16} />
+        </button>
       </div>
 
       <nav className="sidebar-nav" ref={navRef}>
         {visible.map(item => (
           <button
             key={item.page}
+            title={tip(item.label)}
             className={activePage === item.page ? 'active' : ''}
             onClick={() => go(item.page)}
           >
@@ -125,11 +142,11 @@ export function AppSidebar({
 
       <div className="sidebar-bottom">
         {user.role === 'admin' && (
-          <button className="sidebar-mode" onClick={onToggleAdmin}>
+          <button className="sidebar-mode" title={tip(adminView ? 'Vista de empleado' : 'Panel administrativo')} onClick={onToggleAdmin}>
             <span className="nav-icon">
               <Icon name="switch" size={16} />
             </span>
-            {adminView ? 'Vista de empleado' : 'Panel administrativo'}
+            <span className="nav-label">{adminView ? 'Vista de empleado' : 'Panel administrativo'}</span>
           </button>
         )}
 
@@ -137,7 +154,7 @@ export function AppSidebar({
           className="sidebar-user"
           role="button"
           tabIndex={0}
-          title="Ir a mi perfil"
+          title={collapsed ? user.full_name : 'Ir a mi perfil'}
           onClick={() => go('settings')}
           onKeyDown={e => e.key === 'Enter' && go('settings')}
         >
@@ -149,11 +166,11 @@ export function AppSidebar({
           </div>
         </div>
 
-        <button className="sidebar-logout" onClick={onLogout}>
+        <button className="sidebar-logout" title={tip('Cerrar sesión')} onClick={onLogout}>
           <span className="nav-icon">
             <Icon name="logout" size={16} />
           </span>
-          Cerrar sesión
+          <span className="nav-label">Cerrar sesión</span>
         </button>
       </div>
 
@@ -161,11 +178,7 @@ export function AppSidebar({
         <div className="more-backdrop" onClick={() => setMoreOpen(false)}>
           <div className="more-sheet" onClick={e => e.stopPropagation()}>
             {extras.map(item => (
-              <button
-                key={item.page}
-                className={activePage === item.page ? 'active' : ''}
-                onClick={() => go(item.page)}
-              >
+              <button key={item.page} className={activePage === item.page ? 'active' : ''} onClick={() => go(item.page)}>
                 <Icon name={item.icon} />
                 {item.label}
               </button>
