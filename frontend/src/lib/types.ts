@@ -218,6 +218,7 @@ export type Person = {
     manager_id: number | null
     phone: string | null
     schedule: Schedule
+    is_top_level: boolean
 }
 
 export type ImportRow = {
@@ -290,6 +291,7 @@ export type Post = {
     space_name: string | null
     counts: Record<string, number>
     my_response: string | null
+    booking_id: number | null
     audience_size: number
     can_manage: boolean
 }

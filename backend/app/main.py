@@ -733,6 +733,13 @@ def ensure_user_columns() -> None:
         if "avatar" not in existing:
             conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
 
+def ensure_profile_columns() -> None:
+    existing = {c["name"] for c in inspect(engine).get_columns("employee_profiles")}
+
+    if "is_top_level" not in existing:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE employee_profiles ADD COLUMN is_top_level BOOLEAN DEFAULT FALSE"))
+
 # =========================================================
 # REPORTES
 # =========================================================
@@ -1035,6 +1042,7 @@ def startup():
     )
 
     ensure_user_columns()
+    ensure_profile_columns()
 
     db = SessionLocal()
 
@@ -3279,6 +3287,27 @@ def booking_to_out(
         status=booking.status,
     )
 
+def space_conflict(
+    db: Session,
+    space_id: int,
+    day: date,
+    start: int,
+    end: int,
+    exclude_booking_id: int | None = None,
+) -> SpaceBooking | None:
+    query = select(SpaceBooking).where(
+        SpaceBooking.space_id == space_id,
+        SpaceBooking.booking_date == day,
+        SpaceBooking.status == "confirmed",
+        SpaceBooking.start_minutes < end,
+        SpaceBooking.end_minutes > start,
+    )
+
+    if exclude_booking_id:
+        query = query.where(SpaceBooking.id != exclude_booking_id)
+
+    return db.scalar(query.limit(1))
+
 def book_space(
     db: Session,
     user: User,
@@ -3316,17 +3345,7 @@ def book_space(
     if day < now_local.date() or (day == now_local.date() and start < now_local.hour * 60 + now_local.minute):
         raise HTTPException(status_code=400, detail="No puedes reservar en el pasado.")
 
-    conflict = db.scalar(
-        select(SpaceBooking)
-        .where(
-            SpaceBooking.space_id == space.id,
-            SpaceBooking.booking_date == day,
-            SpaceBooking.status == "confirmed",
-            SpaceBooking.start_minutes < end,
-            SpaceBooking.end_minutes > start,
-        )
-        .limit(1)
-    )
+    conflict = space_conflict(db, space.id, day, start, end)
 
     if conflict:
         raise HTTPException(
@@ -3714,6 +3733,7 @@ def build_person(user: User, profile: "EmployeeProfile | None", phone: str | Non
         department=profile.department if profile else None,
         manager_id=profile.manager_id if profile else None,
         phone=phone,
+        is_top_level=bool(profile.is_top_level) if profile else False,
         schedule=schedule_out(schedule_from_profile(profile)),
     )
 
@@ -3776,6 +3796,7 @@ def update_person_profile(
     _: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ):
+    manager_id = None if data.is_top_level else data.manager_id
     target = db.get(User, user_id)
 
     if not target:
@@ -3791,14 +3812,14 @@ def update_person_profile(
     ):
         raise HTTPException(status_code=409, detail="Ese código de empleado ya está asignado a otra persona.")
 
-    if data.manager_id is not None:
-        if data.manager_id == user_id:
+    if manager_id is not None:
+        if manager_id == user_id:
             raise HTTPException(status_code=400, detail="Una persona no puede ser su propio jefe.")
 
-        if not db.get(User, data.manager_id):
+        if not db.get(User, manager_id):
             raise HTTPException(status_code=404, detail="El jefe directo no existe.")
 
-        if creates_cycle(db, user_id, data.manager_id):
+        if creates_cycle(db, user_id, manager_id):
             raise HTTPException(
                 status_code=400,
                 detail="Ese jefe depende de esta persona: se formaría un ciclo en el organigrama.",
@@ -3813,7 +3834,7 @@ def update_person_profile(
     profile.employee_code = code
     profile.position = (data.position or "").strip() or None
     profile.department = (data.department or "").strip() or None
-    profile.manager_id = data.manager_id
+    profile.manager_id = manager_id
     target.hire_date = data.hire_date
 
     if data.custom_schedule:
@@ -3826,6 +3847,8 @@ def update_person_profile(
         profile.work_end_minutes = None
         profile.tolerance_minutes = None
         profile.work_days = None
+
+    profile.is_top_level = data.is_top_level
 
     db.commit()
     db.refresh(target)
@@ -4628,6 +4651,32 @@ def audience_members(post: Post, ctx: AudienceContext) -> set[int]:
 
     return active
 
+def ensure_meeting_room_free(db: Session, data: PostIn, current: Post | None = None) -> None:
+    """Valida la sala ANTES de crear o modificar la publicación."""
+
+    if data.kind != "meeting" or not data.space_id:
+        return
+
+    conflict = space_conflict(
+        db,
+        data.space_id,
+        data.meeting_date,
+        to_minutes(data.start_time),
+        to_minutes(data.end_time),
+        exclude_booking_id=current.booking_id if current else None,
+    )
+
+    if conflict:
+        space = db.get(Space, data.space_id)
+
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{space.name if space else 'La sala'} ya está ocupada de "
+                f"{to_hhmm(conflict.start_minutes)} a {to_hhmm(conflict.end_minutes)} ese día "
+                f"({conflict.title}). Elige otro horario u otra sala: la publicación no se creó."
+            ),
+        )
 
 def audience_label(audience: str) -> str:
     if audience == "team":
@@ -4807,6 +4856,7 @@ def build_posts_out(db: Session, posts: list[Post], user: User, ctx: AudienceCon
                 space_name=spaces.get(post.space_id),
                 counts=counts[post.id],
                 my_response=mine.get(post.id),
+                booking_id=post.booking_id,
                 audience_size=len(audience_members(post, ctx) - {post.author_id}),
                 can_manage=user.role == "admin" or user.id == post.author_id,
             )
@@ -4910,6 +4960,7 @@ def create_post(
         )
 
     check_audience(data.audience, user, ctx)
+    ensure_meeting_room_free(db, data)
 
     if data.image:
         validate_avatar(data.image, 1_000_000)
@@ -4951,6 +5002,7 @@ def update_post(
         raise HTTPException(status_code=403, detail="No puedes editar esta publicación.")
 
     check_audience(data.audience, user, ctx)
+    ensure_meeting_room_free(db, data, post)
 
     if data.image and data.image != post.image:
         validate_avatar(data.image, 1_000_000)

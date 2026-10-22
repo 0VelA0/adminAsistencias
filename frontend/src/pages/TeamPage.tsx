@@ -75,6 +75,7 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
     const [selectedId, setSelectedId] = useState<number | null>(null)
     const [focus, setFocus] = useState<{ id: number; key: number } | null>(null)
     const [editing, setEditing] = useState<number | null>(null)
+    
 
     const selected = people.data?.find(p => p.id === selectedId) ?? null
 
@@ -100,14 +101,14 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
             <section className="dashboard-card">
                 <StateView state={people}>
                     {list => {
-                        const unassigned = list.filter(p => !p.manager_id).length
+                        const unassigned = list.filter(p => !p.manager_id && !p.is_top_level).length
 
                         return (
                             <>
-                                {isAdmin && unassigned > 1 && (
+                                {isAdmin && unassigned > 0 && (
                                     <p className="notice org-hint">
-                                        {unassigned} personas no tienen jefe directo y aparecen como cabeza de su propio
-                                        grupo. Asígnalo desde la ficha de cada persona o en Usuarios.
+                                        {unassigned === 1 ? '1 persona aún no tiene' : `${unassigned} personas aún no tienen`} jefe
+                                        directo asignado. Si alguna es cabeza de la organización, márcala así en su perfil laboral.
                                     </p>
                                 )}
 

@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { ymd } from '../lib/format'
+import { ymd, toMin } from '../lib/format'
 import { fileToPostImage } from '../lib/image'
 import { useAsync } from '../lib/useAsync'
-import type { Post, PostsMeta, Space } from '../lib/types'
+import type { Post, PostsMeta, Space, Booking } from '../lib/types'
 import { Icon } from './Icon'
 import { useToast } from './Toast'
 
@@ -62,6 +62,23 @@ export function PostModal({
             toast.error(error instanceof Error ? error.message : 'No se pudo usar la imagen.')
         }
     }
+
+    const roomDay = useAsync(
+        () =>
+            place === 'space' && spaceId && date
+                ? api<Booking[]>(`/bookings?day=${date}`, {}, token)
+                : Promise.resolve([] as Booking[]),
+        [token, place, spaceId, date]
+    )
+
+    const roomBookings = (roomDay.data ?? []).filter(
+        b => b.space_id === Number(spaceId) && b.id !== post?.booking_id
+    )
+
+    const clash =
+        meeting && place === 'space' && spaceId && start < end
+            ? roomBookings.find(b => toMin(b.start_time) < toMin(end) && toMin(b.end_time) > toMin(start))
+            : undefined
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault()
@@ -178,7 +195,24 @@ export function PostModal({
                                         </option>
                                     ))}
                                 </select>
-                                <small>La sala se reserva automáticamente si está libre. Usa horarios de 15 en 15 minutos.</small>
+                                {spaceId && roomDay.data && (
+                                    clash ? (
+                                        <p className="notice warning">
+                                            La sala está ocupada de {clash.start_time} a {clash.end_time} ({clash.title}). Elige otro
+                                            horario u otra sala para poder publicar.
+                                        </p>
+                                    ) : (
+                                        <p className="availability">
+                                            <Icon name="check" size={14} /> Sala disponible en ese horario. Se reservará al publicar.
+                                        </p>
+                                    )
+                                )}
+
+                                {roomBookings.length > 0 && (
+                                    <small>
+                                        Ocupada ese día: {roomBookings.map(b => `${b.start_time}–${b.end_time}`).join(', ')}
+                                    </small>
+                                )}
                             </label>
                         )}
 
@@ -236,7 +270,7 @@ export function PostModal({
                     <button type="button" className="secondary" onClick={onClose}>
                         Cancelar
                     </button>
-                    <button type="submit" disabled={busy}>
+                    <button type="submit" disabled={busy || Boolean(clash)}>
                         {busy ? 'Publicando…' : post ? 'Guardar cambios' : 'Publicar'}
                     </button>
                 </div>

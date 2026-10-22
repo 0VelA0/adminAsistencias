@@ -397,6 +397,7 @@ class EmployeeProfile(Base):
     work_end_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tolerance_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_days: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_top_level: Mapped[bool] = mapped_column(Boolean, default=False)
 
 class IncidenceCode(Base):
     __tablename__ = "incidence_codes"

@@ -115,7 +115,7 @@ export function PersonDrawer({
 
                 <section>
                     <h3 className="drawer-title">Jefe directo</h3>
-                    {manager ? <PersonLink person={manager} onSelect={onSelect} /> : <p className="muted">Sin jefe directo</p>}
+                    {manager ? <PersonLink person={manager} onSelect={onSelect} /> : <p className="muted">{person.is_top_level ? 'Cabeza de la organización' : 'Sin jefe directo asignado'}</p>}
                 </section>
 
                 <section>

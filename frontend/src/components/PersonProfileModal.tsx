@@ -46,7 +46,6 @@ function ProfileForm({
     const [code, setCode] = useState(person.employee_code ?? '')
     const [position, setPosition] = useState(person.position ?? '')
     const [department, setDepartment] = useState(person.department ?? '')
-    const [managerId, setManagerId] = useState(person.manager_id ? String(person.manager_id) : '')
     const [hireDate, setHireDate] = useState(person.hire_date ?? '')
     const [custom, setCustom] = useState(person.schedule.is_custom)
     const [start, setStart] = useState(person.schedule.start_time)
@@ -54,6 +53,9 @@ function ProfileForm({
     const [tolerance, setTolerance] = useState(String(person.schedule.tolerance_minutes))
     const [days, setDays] = useState<number[]>(person.schedule.work_days)
     const [saving, setSaving] = useState(false)
+    const [managerId, setManagerId] = useState(
+        person.is_top_level ? 'top' : person.manager_id ? String(person.manager_id) : ''
+    )
 
     // La persona y todo su equipo (directo o indirecto) no pueden ser su jefe
     const blocked = useMemo(() => {
@@ -94,13 +96,14 @@ function ProfileForm({
                         employee_code: code.trim() || null,
                         position: position.trim() || null,
                         department: department.trim() || null,
-                        manager_id: managerId ? Number(managerId) : null,
                         hire_date: hireDate || null,
                         custom_schedule: custom,
                         start_time: custom ? start : null,
                         end_time: custom ? end : null,
                         tolerance_minutes: custom ? Number(tolerance) : null,
                         work_days: custom ? days : null,
+                        manager_id: managerId && managerId !== 'top' ? Number(managerId) : null,
+                        is_top_level: managerId === 'top',
                     }),
                 },
                 token
@@ -150,7 +153,8 @@ function ProfileForm({
             <label>
                 Jefe directo
                 <select value={managerId} onChange={e => setManagerId(e.target.value)}>
-                    <option value="">Sin jefe directo (cabeza de la empresa)</option>
+                    <option value="">Sin asignar todavía</option>
+                    <option value="top">Ninguno: es cabeza de la organización</option>
                     {managers.map(m => (
                         <option key={m.id} value={m.id}>
                             {m.full_name}

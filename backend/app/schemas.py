@@ -484,6 +484,7 @@ class PersonOut(BaseModel):
     department: str | None = None
     manager_id: int | None = None
     phone: str | None = None
+    is_top_level: bool = False
     schedule: ScheduleOut
 
 
@@ -498,6 +499,7 @@ class ProfileUpdateIn(BaseModel):
     end_time: str | None = Field(default=None, pattern=HHMM)
     tolerance_minutes: int | None = Field(default=None, ge=0, le=180)
     work_days: list[int] | None = None
+    is_top_level: bool = False
 
     @model_validator(mode="after")
     def valid_schedule(self):
@@ -731,6 +733,7 @@ class PostOut(BaseModel):
     space_name: str | None = None
     counts: dict[str, int]
     my_response: str | None = None
+    booking_id: int | None = None
     audience_size: int
     can_manage: bool
 

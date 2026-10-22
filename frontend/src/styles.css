@@ -3519,6 +3519,17 @@ button:active:not(:disabled) {
   gap: 6px;
 }
 
+.availability {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ok);
+  animation: fade-up .25s ease-out backwards;
+}
+
 /* ---------- 22. CALENDARIO ---------- */
 
 .calendar-toolbar {
