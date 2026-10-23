@@ -12,11 +12,11 @@ const EMPLOYEE_ITEMS: Item[] = [
   { page: 'dashboard', icon: 'home', label: 'Dashboard' },
   { page: 'attendance', icon: 'clock', label: 'Asistencia' },
   { page: 'vacations', icon: 'sun', label: 'Vacaciones' },
+  { page: 'spaces', icon: 'building', label: 'Espacios' },
   { page: 'news', icon: 'megaphone', label: 'Comunicados' },
   { page: 'calendar', icon: 'calendar', label: 'Calendario' },
-  { page: 'history', icon: 'history', label: 'Historial' },
   { page: 'team', icon: 'org', label: 'Equipo' },
-  { page: 'spaces', icon: 'building', label: 'Espacios' },
+  { page: 'history', icon: 'history', label: 'Historial' },
   { page: 'settings', icon: 'sliders', label: 'Configuración' },
 ]
 
