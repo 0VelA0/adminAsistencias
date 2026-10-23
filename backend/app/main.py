@@ -14,7 +14,7 @@ from sqlalchemy import and_, or_, select, inspect, text, delete, func, update
 from sqlalchemy.orm import Session
 import base64
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
@@ -27,7 +27,7 @@ from openpyxl.utils import get_column_letter
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode,Post, PostResponse
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode,Post,PostResponse,AttendanceBreak,OfficeDayChange
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -94,7 +94,10 @@ from .schemas import (
     PostsMetaOut,
     RespondIn,
     ResponsePersonOut,
-    CalendarEventOut
+    CalendarEventOut,
+    BreakOut,
+    OfficeDayOut,
+    OfficeChangeIn
 )
 
 
@@ -132,7 +135,23 @@ PREF_BY_KIND = {
     "permission": "notify_permissions",
     "weekly": "notify_weekly",
     "company": "notify_company",
-    "meeting_reminder": "notify_company"
+    "meeting_reminder": "notify_company",
+    "office_day": "notify_attendance",
+    "missing_exit": "notify_attendance",
+    "vacation": "notify_vacations",
+    "permission": "notify_permissions",
+}
+
+PROFILE_COLUMNS = {
+    "is_top_level": "BOOLEAN DEFAULT FALSE",
+    "work_mode": "VARCHAR(10) DEFAULT 'onsite'",
+    "schedule_type": "VARCHAR(10) DEFAULT 'fixed'",
+    "weekly_minutes": "INTEGER",
+    "office_days": "VARCHAR(20)",
+}
+
+ATTENDANCE_COLUMNS = {
+    "location_mode": "VARCHAR(10) DEFAULT 'office'",
 }
 
 
@@ -240,11 +259,20 @@ def as_utc(value: datetime) -> datetime:
 
 @dataclass
 class Schedule:
-    start: int        # minutos desde medianoche
+    start: int
     end: int
     tolerance: int
-    days: list[int]   # lunes = 0
+    days: list[int]
     custom: bool
+    mode: str = "onsite"
+    flexible: bool = False
+    weekly_minutes: int = 2400
+    office_days: list[int] = field(default_factory=list)
+
+    @property
+    def daily_minutes(self) -> int:
+        return round(self.weekly_minutes / max(len(self.days), 1))
+
 
 
 def default_schedule() -> Schedule:
@@ -256,20 +284,38 @@ def default_schedule() -> Schedule:
         custom=False,
     )
 
+def parse_days(value: str | None, fallback: list[int]) -> list[int]:
+    return [int(d) for d in value.split(",") if d != ""] if value else fallback
 
 def schedule_from_profile(profile: "EmployeeProfile | None") -> Schedule:
-    base = default_schedule()
+    schedule = default_schedule()
 
-    if not profile or profile.work_start_minutes is None:
-        return base
+    if profile and profile.work_start_minutes is not None:
+        schedule = Schedule(
+            start=profile.work_start_minutes,
+            end=profile.work_end_minutes or schedule.end,
+            tolerance=profile.tolerance_minutes if profile.tolerance_minutes is not None else schedule.tolerance,
+            days=parse_days(profile.work_days, [0, 1, 2, 3, 4]),
+            custom=True,
+        )
 
-    return Schedule(
-        start=profile.work_start_minutes,
-        end=profile.work_end_minutes or base.end,
-        tolerance=profile.tolerance_minutes if profile.tolerance_minutes is not None else base.tolerance,
-        days=[int(d) for d in (profile.work_days or "0,1,2,3,4").split(",") if d != ""],
-        custom=True,
+    if profile:
+        schedule.mode = profile.work_mode or "onsite"
+        schedule.flexible = profile.schedule_type == "flexible"
+
+        if schedule.flexible:
+            schedule.days = parse_days(profile.work_days, schedule.days)
+
+        if schedule.mode == "hybrid":
+            schedule.office_days = parse_days(profile.office_days, [])
+
+    schedule.weekly_minutes = (
+        profile.weekly_minutes
+        if profile and profile.weekly_minutes
+        else (schedule.end - schedule.start) * len(schedule.days)
     )
+
+    return schedule
 
 
 def get_profile(db: Session, user_id: int) -> "EmployeeProfile | None":
@@ -502,189 +548,69 @@ def create_attendance_record(
     note: str | None = None,
 ) -> AttendanceRecord:
 
-    
-
-    # -----------------------------------------------------
-    # 1. Validar tipo de asistencia
-    # -----------------------------------------------------
-
     if kind not in {"entry", "exit"}:
-        raise HTTPException(
-            status_code=400,
-            detail="El tipo de asistencia debe ser entry o exit.",
-        )
+        raise HTTPException(status_code=400, detail="El tipo de asistencia debe ser entry o exit.")
 
-    # -----------------------------------------------------
-    # 2. Fecha/hora
-    # -----------------------------------------------------
-
-    if recorded_at is None:
-        recorded_at = datetime.now(timezone.utc)
-
-    recorded_at = normalize_datetime(
-        recorded_at
-    )
-
-    if work_date is None:
-        work_date = get_work_date(
-            recorded_at
-        )
-
-    # -----------------------------------------------------
-    # 3. Validar que el usuario esté activo
-    # -----------------------------------------------------
+    recorded_at = normalize_datetime(recorded_at or datetime.now(timezone.utc))
+    work_date = work_date or get_work_date(recorded_at)
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=403,
-            detail="El usuario está desactivado.",
-        )
+        raise HTTPException(status_code=403, detail="El usuario está desactivado.")
 
-    # -----------------------------------------------------
-    # 4. Revisar vacaciones
-    # -----------------------------------------------------
+    if get_active_vacation(user.id, db, work_date):
+        raise HTTPException(status_code=409, detail="El usuario tiene vacaciones aprobadas para esta fecha.")
 
-    vacation = get_active_vacation(
-        user.id,
-        db,
-        work_date,
-    )
-
-    if vacation:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "El usuario tiene vacaciones aprobadas "
-                "para esta fecha."
-            ),
-        )
-
-    # -----------------------------------------------------
-    # 5. Revisar asistencia existente
-    # -----------------------------------------------------
-
-    attendance = get_attendance_for_date(
-        user.id,
-        work_date,
-        db,
-    )
+    attendance = get_attendance_for_date(user.id, work_date, db)
 
     if kind == "entry" and attendance["entry"]:
-        raise HTTPException(
-            status_code=409,
-            detail="El usuario ya registró su entrada para este día.",
-        )
+        raise HTTPException(status_code=409, detail="La jornada de este día ya se inició.")
 
     if kind == "exit" and attendance["exit"]:
-        raise HTTPException(
-            status_code=409,
-            detail="El usuario ya registró su salida para este día.",
-        )
-
-    # -----------------------------------------------------
-    # 6. No permitir salida sin entrada
-    # -----------------------------------------------------
+        raise HTTPException(status_code=409, detail="La jornada de este día ya terminó.")
 
     if kind == "exit" and not attendance["entry"]:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "No se puede registrar la salida "
-                "porque no existe una entrada para este día."
-            ),
-        )
+        raise HTTPException(status_code=409, detail="No se puede terminar la jornada sin haberla iniciado.")
 
-    # -----------------------------------------------------
-    # 7. GPS para registros hechos por empleado
-    # -----------------------------------------------------
+    schedule = get_schedule(db, user.id)
+    location_mode = "office"
+    distance = 0.0
 
     if source == "employee":
+        office_day = is_office_day(schedule, work_date, office_changes(db, user.id, work_date, work_date))
 
-        if (
-            latitude is None
-            or longitude is None
-            or accuracy_meters is None
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="La ubicación es obligatoria.",
-            )
+        if office_day:
+            if latitude is None or longitude is None or accuracy_meters is None:
+                raise HTTPException(status_code=400, detail="La ubicación es obligatoria en días de oficina.")
 
-        distance = distance_meters(
-            latitude,
-            longitude,
-            settings.company_latitude,
-            settings.company_longitude,
-        )
+            distance = distance_meters(latitude, longitude, settings.company_latitude, settings.company_longitude)
 
-        if distance > settings.allowed_radius_meters:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Estás fuera del área permitida "
-                    "para registrar asistencia."
-                ),
-            )
+            if distance > settings.allowed_radius_meters:
+                detail = "Estás fuera del área permitida para registrar asistencia."
 
-    # -----------------------------------------------------
-    # 8. Registro administrativo
-    # -----------------------------------------------------
+                if schedule.mode == "hybrid":
+                    detail += (
+                        " Hoy te toca oficina: si no vendrás, registra el cambio en "
+                        "'Mis días en oficina' y vuelve a intentarlo."
+                    )
 
+                raise HTTPException(status_code=403, detail=detail)
+        else:
+            # Remoto: no se pide ni se guarda la ubicación
+            location_mode = "remote"
+            latitude = longitude = accuracy_meters = 0.0
     else:
-
-        latitude = (
-            settings.company_latitude
-            if latitude is None
-            else latitude
-        )
-
-        longitude = (
-            settings.company_longitude
-            if longitude is None
-            else longitude
-        )
-
-        accuracy_meters = (
-            0
-            if accuracy_meters is None
-            else accuracy_meters
-        )
-
-        distance = 0.0
-
-    # -----------------------------------------------------
-    # 9. Determinar estado
-    # -----------------------------------------------------
+        latitude = settings.company_latitude if latitude is None else latitude
+        longitude = settings.company_longitude if longitude is None else longitude
+        accuracy_meters = accuracy_meters or 0.0
 
     if status_override is not None:
-
-        if status_override not in {
-            "normal",
-            "late",
-        }:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "El estado debe ser normal o late."
-                ),
-            )
-
+        if status_override not in {"normal", "late"}:
+            raise HTTPException(status_code=400, detail="El estado debe ser normal o late.")
         attendance_status = status_override
-
+    elif kind == "entry" and not schedule.flexible and is_late_entry(recorded_at, schedule):
+        attendance_status = "late"
     else:
-
-        if kind == "entry":
-            attendance_status = (
-                "late"
-                if is_late_entry(recorded_at, get_schedule(db, user.id))
-                else "normal"
-            )
-        else:
-            attendance_status = "normal"
-
-    # -----------------------------------------------------
-    # 10. Crear registro
-    # -----------------------------------------------------
+        attendance_status = "normal"  # la jornada flexible no tiene retardos
 
     record = AttendanceRecord(
         user_id=user.id,
@@ -699,26 +625,25 @@ def create_attendance_record(
         status=attendance_status,
         created_by_id=created_by_id,
         note=note,
+        location_mode=location_mode,
     )
 
     db.add(record)
 
+    if kind == "exit":
+        pending_break = open_break(db, user.id, work_date)
+
+        if pending_break:
+            pending_break.ended_at = recorded_at.astimezone(timezone.utc)
+
     try:
         db.commit()
         db.refresh(record)
-
     except Exception as exc:
         db.rollback()
-
-        # Puede ser una violación de la restricción única
-        # si dos peticiones llegaron prácticamente al mismo tiempo.
         raise HTTPException(
             status_code=409,
-            detail=(
-                "No se pudo registrar la asistencia. "
-                "Es posible que ya exista un registro "
-                "para ese tipo y fecha."
-            ),
+            detail="No se pudo registrar la asistencia. Es posible que ya exista un registro de ese tipo hoy.",
         ) from exc
 
     return record
@@ -733,20 +658,21 @@ def ensure_user_columns() -> None:
         if "avatar" not in existing:
             conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
 
-def ensure_profile_columns() -> None:
-    existing = {c["name"] for c in inspect(engine).get_columns("employee_profiles")}
+def add_missing_columns(table: str, columns: dict[str, str]) -> None:
+    existing = {c["name"] for c in inspect(engine).get_columns(table)}
 
-    if "is_top_level" not in existing:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE employee_profiles ADD COLUMN is_top_level BOOLEAN DEFAULT FALSE"))
+    with engine.begin() as conn:
+        for name, ddl in columns.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 # =========================================================
 # REPORTES
 # =========================================================
 
 REPORT_KEYS = [
-    "attendance", "late", "absence", "vacation", "paid_leave",
-    "unpaid_leave", "holiday", "rest", "incomplete",
+    "attendance", "remote", "late", "absence", "vacation", "paid_leave",
+    "unpaid_leave", "holiday", "rest", "incomplete", "short_hours",
 ]
 
 DEFAULT_CODES = {
@@ -759,6 +685,8 @@ DEFAULT_CODES = {
     "holiday": ("FES", "Día festivo", False),
     "rest": ("DES", "Día de descanso", False),
     "incomplete": ("INC", "Registro incompleto (sin salida)", True),
+    "remote": ("REM", "Trabajo remoto", False),
+    "short_hours": ("HIN", "Horas incompletas (jornada flexible)", True),
 }
 
 CODE_COLORS = {
@@ -771,6 +699,8 @@ CODE_COLORS = {
     "holiday": "E3E8F0",
     "rest": "F1F3F6",
     "incomplete": "FCE4EF",
+    "remote": "DDF3F0",
+    "short_hours": "FFE4E6",
 }
 
 WEEKDAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -820,6 +750,7 @@ class ReportDay:
     late_minutes: int = 0
     incomplete: bool = False
     note: str | None = None
+    short_minutes: int = 0
 
 
 def build_report_days(db: Session, data: ReportRequest):
@@ -839,11 +770,24 @@ def build_report_days(db: Session, data: ReportRequest):
     ]
 
     if not users:
-        return [], profiles, []
+        return [], profiles, [], []
 
     ids = [u.id for u in users]
 
     attendance: dict[tuple[int, date], dict[str, AttendanceRecord]] = {}
+    breaks: dict[tuple[int, date], list] = {}
+
+    for item in db.scalars(
+        select(AttendanceBreak).where(
+            AttendanceBreak.user_id.in_(ids),
+            AttendanceBreak.work_date >= data.start,
+            AttendanceBreak.work_date <= data.end,
+        )
+    ).all():
+        breaks.setdefault((item.user_id, item.work_date), []).append(item)
+
+    now = datetime.now(timezone.utc)
+    shortfalls: list[ReportDay] = []
 
     for record in db.scalars(
         select(AttendanceRecord).where(
@@ -908,7 +852,13 @@ def build_report_days(db: Session, data: ReportRequest):
                 late = entry.status == "late"
                 local_entry = as_utc(entry.recorded_at).astimezone(LOCAL_TIMEZONE)
 
-                hours = 0.0
+                hours = (
+                    round(worked_minutes(entry, exit_record, breaks.get((user.id, day), []), now) / 60, 2)
+                    if exit_record
+                    else 0.0
+                )
+
+                key = "late" if late else ("remote" if entry.location_mode == "remote" else "attendance")
                 if exit_record:
                     hours = round(
                         (as_utc(exit_record.recorded_at) - as_utc(entry.recorded_at)).total_seconds() / 3600,
@@ -921,7 +871,7 @@ def build_report_days(db: Session, data: ReportRequest):
                     ReportDay(
                         user=user,
                         day=day,
-                        key="late" if late else "attendance",
+                        key=key,
                         entry=entry.recorded_at,
                         exit=exit_record.recorded_at if exit_record else None,
                         hours=hours,
@@ -953,17 +903,42 @@ def build_report_days(db: Session, data: ReportRequest):
 
             user_days.append(ReportDay(user=user, day=day, key=key, note=note))
 
+        if schedule.flexible:
+            first_monday = data.start - timedelta(days=data.start.weekday())
+            if first_monday < data.start:
+                first_monday += timedelta(days=7)  # solo semanas completas dentro del periodo
+
+            monday = first_monday
+
+            while monday + timedelta(days=6) <= min(data.end, today - timedelta(days=1)):
+                sunday = monday + timedelta(days=6)
+                target = weekly_target(db, user, schedule, monday)
+                done = minutes_worked_between(db, user.id, monday, sunday, now)
+
+                if target and done < target:
+                    shortfalls.append(
+                        ReportDay(
+                            user=user,
+                            day=sunday,
+                            key="short_hours",
+                            short_minutes=target - done,
+                            note=f"Trabajó {done / 60:.1f} h de {target / 60:.1f} h de la semana",
+                        )
+                    )
+
+                monday += timedelta(days=7)
+
         # Los inactivos solo aparecen si trabajaron en el periodo
         if user.is_active or worked:
             included.append(user)
             result.extend(user_days)
 
-    return included, profiles, result
+    return included, profiles, result, shortfalls
 
 
-def summarize_report(users: list[User], days: list[ReportDay]) -> dict[int, dict]:
+def summarize_report(users: list[User], days: list[ReportDay], shortfalls: list[ReportDay]) -> dict[int, dict]:
     stats = {
-        u.id: {"counts": {k: 0 for k in REPORT_KEYS}, "hours": 0.0, "late": 0, "workdays": 0}
+        u.id: {"counts": {k: 0 for k in REPORT_KEYS}, "hours": 0.0, "late": 0, "workdays": 0, "short": 0}
         for u in users
     }
 
@@ -979,6 +954,11 @@ def summarize_report(users: list[User], days: list[ReportDay]) -> dict[int, dict
 
         if item.key not in ("rest", "holiday"):
             s["workdays"] += 1
+
+    for item in shortfalls:
+        s = stats[item.user.id]
+        s["counts"]["short_hours"] += 1
+        s["short"] = s.get("short", 0) + item.short_minutes
 
     return stats
 
@@ -1042,7 +1022,8 @@ def startup():
     )
 
     ensure_user_columns()
-    ensure_profile_columns()
+    add_missing_columns("employee_profiles", PROFILE_COLUMNS)
+    add_missing_columns("attendance_records", ATTENDANCE_COLUMNS)
 
     db = SessionLocal()
 
@@ -1106,7 +1087,7 @@ def startup():
 
                 db.add(employee)
 
-
+        ensure_incidence_codes(db)
         get_branding(db)
         db.commit()
 
@@ -1395,26 +1376,7 @@ def attendance_today(
     db: Session = Depends(get_db),
 ):
 
-    today = get_work_date()
-
-    attendance = get_attendance_for_date(
-        user.id,
-        today,
-        db,
-    )
-
-    vacation = get_active_vacation(
-        user.id,
-        db,
-        today,
-    )
-
-    return AttendanceTodayOut(
-        work_date=today,
-        entry=attendance["entry"],
-        exit=attendance["exit"],
-        is_on_vacation=vacation is not None,
-    )
+    return build_today(db, user)
 
 
 # =========================================================
@@ -1535,6 +1497,7 @@ def today_overview(
                     entry_at=entry.recorded_at,
                     exit_at=exit_record.recorded_at if exit_record else None,
                     status=entry.status,
+                    remote=entry.location_mode == "remote"
                 )
             )
         elif employee.id in vacations:
@@ -1546,7 +1509,7 @@ def today_overview(
                 TodayAbsenceOut(user=user_out, start_date=p.start_date, end_date=p.end_date, kind=p.kind)
             )
         elif works_today:
-            if now_minutes > schedule.start + schedule.tolerance:
+            if not schedule.flexible and now_minutes > schedule.start + schedule.tolerance:
                 missing.append(user_out)
             else:
                 pending += 1
@@ -2909,12 +2872,6 @@ def remove_logo(
 # NOTIFICACIONES
 # =========================================================
 
-PREF_BY_KIND = {
-    "missing_exit": "notify_attendance",
-    "vacation": "notify_vacations",
-    "permission": "notify_permissions",
-}
-
 
 def create_notification(
     db: Session,
@@ -3020,8 +2977,8 @@ def sync_attendance_notifications(
         missing = (
             "entry" in kinds
             and "exit" not in kinds
-            and (work_date < today or now_local > today_cutoff)
-        )
+            and (work_date < today or (not schedule.flexible and now_local > today_cutoff))
+        ) 
 
         if missing and key not in existing:
             db.add(
@@ -3106,7 +3063,6 @@ def sync_weekly_summary(
     ]
 
     punctual = late = absent = 0
-    seconds = 0.0
 
     for offset in range(7):
         day = monday + timedelta(days=offset)
@@ -3117,12 +3073,6 @@ def sync_weekly_summary(
                 late += 1
             else:
                 punctual += 1
-
-            if "exit" in records:
-                seconds += (
-                    as_utc(records["exit"].recorded_at)
-                    - as_utc(records["entry"].recorded_at)
-                ).total_seconds()
 
         elif (
             day.weekday() in schedule.days
@@ -3135,17 +3085,23 @@ def sync_weekly_summary(
     if punctual + late + absent == 0:
         return
 
+    worked = minutes_worked_between(db, user.id, monday, sunday, datetime.now(timezone.utc))
+    target = weekly_target(db, user, schedule, monday) if schedule.flexible else None
+
+    body = (
+        f"Del {monday:%d/%m} al {sunday:%d/%m}: {punctual} puntuales, "
+        f"{late} con retardo, {absent} faltas y {worked / 60:.1f} h trabajadas"
+        + (f" de {target / 60:.1f} h de tu meta semanal." if target else ".")
+    )
+
     create_notification(
         db,
         user.id,
         "weekly",
         "Resumen de tu semana",
-        (
-            f"Del {monday:%d/%m} al {sunday:%d/%m}: {punctual} puntuales, "
-            f"{late} con retardo, {absent} faltas y {seconds / 3600:.1f} h trabajadas."
-        ),
+        body,
         "history",
-        key,
+        key
     )
 
 @app.get(
@@ -3580,6 +3536,8 @@ def purge_user(db: Session, user: User) -> None:
         Notification,
         UserPreferences,
         SpaceBooking,
+        AttendanceBreak,
+        OfficeDayChange
     ):
         db.execute(delete(model).where(model.user_id == uid))
 
@@ -3716,6 +3674,169 @@ def schedule_out(schedule: Schedule) -> ScheduleOut:
         tolerance_minutes=schedule.tolerance,
         work_days=schedule.days,
         is_custom=schedule.custom,
+        work_mode=schedule.mode,
+        schedule_type="flexible" if schedule.flexible else "fixed",
+        weekly_minutes=schedule.weekly_minutes,
+        daily_minutes=schedule.daily_minutes,
+        office_days=schedule.office_days,
+    )
+
+def office_changes(db: Session, user_id: int, start: date, end: date) -> dict[date, "OfficeDayChange"]:
+    return {
+        c.change_date: c
+        for c in db.scalars(
+            select(OfficeDayChange).where(
+                OfficeDayChange.user_id == user_id,
+                OfficeDayChange.change_date >= start,
+                OfficeDayChange.change_date <= end,
+            )
+        ).all()
+    }
+
+
+def is_office_day(schedule: Schedule, day: date, changes: dict) -> bool:
+    if schedule.mode == "onsite":
+        return True
+
+    if schedule.mode == "remote":
+        return False
+
+    change = changes.get(day)
+
+    if change is not None:
+        return change.kind == "add"
+
+    return day.weekday() in schedule.office_days
+
+
+def day_breaks(db: Session, user_id: int, day: date) -> list["AttendanceBreak"]:
+    return db.scalars(
+        select(AttendanceBreak)
+        .where(AttendanceBreak.user_id == user_id, AttendanceBreak.work_date == day)
+        .order_by(AttendanceBreak.started_at)
+    ).all()
+
+
+def open_break(db: Session, user_id: int, day: date) -> "AttendanceBreak | None":
+    return db.scalar(
+        select(AttendanceBreak).where(
+            AttendanceBreak.user_id == user_id,
+            AttendanceBreak.work_date == day,
+            AttendanceBreak.ended_at.is_(None),
+        )
+    )
+
+
+def worked_minutes(entry, exit_record, breaks, now: datetime) -> int:
+    """Minutos netos: de la entrada a la salida (o a ahora), menos pausas."""
+
+    if not entry:
+        return 0
+
+    end = as_utc(exit_record.recorded_at) if exit_record else now
+    total = (end - as_utc(entry.recorded_at)).total_seconds()
+
+    for item in breaks:
+        break_end = min(as_utc(item.ended_at) if item.ended_at else end, end)
+        total -= max(0.0, (break_end - as_utc(item.started_at)).total_seconds())
+
+    return max(0, int(total // 60))
+
+
+def minutes_worked_between(db: Session, user_id: int, start: date, end: date, now: datetime) -> int:
+    records: dict[date, dict] = {}
+    breaks: dict[date, list] = {}
+
+    for r in db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.user_id == user_id,
+            AttendanceRecord.work_date >= start,
+            AttendanceRecord.work_date <= end,
+        )
+    ).all():
+        records.setdefault(r.work_date, {})[r.kind] = r
+
+    for b in db.scalars(
+        select(AttendanceBreak).where(
+            AttendanceBreak.user_id == user_id,
+            AttendanceBreak.work_date >= start,
+            AttendanceBreak.work_date <= end,
+        )
+    ).all():
+        breaks.setdefault(b.work_date, []).append(b)
+
+    return sum(
+        worked_minutes(day.get("entry"), day.get("exit"), breaks.get(work_date, []), now)
+        for work_date, day in records.items()
+    )
+
+
+def weekly_target(db: Session, user: User, schedule: Schedule, monday: date) -> int:
+    """Meta de la semana, descontando festivos, vacaciones y permisos aprobados."""
+
+    sunday = monday + timedelta(days=6)
+    workdays = [monday + timedelta(days=i) for i in range(7) if i in schedule.days]
+
+    if not workdays:
+        return 0
+
+    holidays = set(
+        db.scalars(
+            select(Holiday.holiday_date).where(Holiday.holiday_date >= monday, Holiday.holiday_date <= sunday)
+        ).all()
+    )
+
+    away = [
+        (item.start_date, item.end_date)
+        for model in (VacationRequest, PermissionRequest)
+        for item in db.scalars(
+            select(model).where(
+                model.user_id == user.id,
+                model.status == "approved",
+                model.start_date <= sunday,
+                model.end_date >= monday,
+            )
+        ).all()
+    ]
+
+    effective = [
+        d
+        for d in workdays
+        if d not in holidays
+        and not any(start <= d <= end for start, end in away)
+        and (not user.hire_date or d >= user.hire_date)
+    ]
+
+    return round(schedule.weekly_minutes * len(effective) / len(workdays))
+
+
+def build_today(db: Session, user: User) -> AttendanceTodayOut:
+    today = get_work_date()
+    now = datetime.now(timezone.utc)
+    monday = today - timedelta(days=today.weekday())
+
+    attendance = get_attendance_for_date(user.id, today, db)
+    schedule = get_schedule(db, user.id)
+    office = is_office_day(schedule, today, office_changes(db, user.id, today, today))
+    breaks = day_breaks(db, user.id, today)
+
+    return AttendanceTodayOut(
+        work_date=today,
+        entry=attendance["entry"],
+        exit=attendance["exit"],
+        is_on_vacation=get_active_vacation(user.id, db, today) is not None,
+        work_mode=schedule.mode,
+        schedule_type="flexible" if schedule.flexible else "fixed",
+        is_office_day=office,
+        requires_location=office,
+        start_time=None if schedule.flexible else to_hhmm(schedule.start),
+        end_time=None if schedule.flexible else to_hhmm(schedule.end),
+        breaks=[BreakOut.model_validate(b) for b in breaks],
+        on_break=any(b.ended_at is None for b in breaks),
+        worked_minutes=worked_minutes(attendance["entry"], attendance["exit"], breaks, now),
+        expected_minutes=schedule.daily_minutes if schedule.flexible else max(schedule.end - schedule.start, 0),
+        week_worked_minutes=minutes_worked_between(db, user.id, monday, today, now),
+        week_target_minutes=weekly_target(db, user, schedule, monday),
     )
 
 
@@ -3837,16 +3958,26 @@ def update_person_profile(
     profile.manager_id = manager_id
     target.hire_date = data.hire_date
 
-    if data.custom_schedule:
+    profile.work_mode = data.work_mode
+    profile.schedule_type = data.schedule_type
+    profile.office_days = (
+        ",".join(str(d) for d in sorted(set(data.office_days))) if data.work_mode == "hybrid" else None
+    )
+
+    if data.schedule_type == "flexible":
+        profile.work_start_minutes = profile.work_end_minutes = profile.tolerance_minutes = None
+        profile.work_days = ",".join(str(d) for d in sorted(set(data.work_days)))
+        profile.weekly_minutes = round(data.weekly_hours * 60)
+    elif data.custom_schedule:
         profile.work_start_minutes = to_minutes(data.start_time)
         profile.work_end_minutes = to_minutes(data.end_time)
         profile.tolerance_minutes = data.tolerance_minutes
         profile.work_days = ",".join(str(d) for d in sorted(set(data.work_days)))
+        profile.weekly_minutes = None
     else:
-        profile.work_start_minutes = None
-        profile.work_end_minutes = None
-        profile.tolerance_minutes = None
+        profile.work_start_minutes = profile.work_end_minutes = profile.tolerance_minutes = None
         profile.work_days = None
+        profile.weekly_minutes = None
 
     profile.is_top_level = data.is_top_level
 
@@ -3874,13 +4005,20 @@ IMPORT_COLUMNS = [
     "Hora de salida",
     "Tolerancia (min)",
     "Días laborables",
+    "Modalidad",
+    "Días en oficina",
+    "Jornada",
+    "Horas semanales"
 ]
 
 IMPORT_EXAMPLE = [
     "E-001", "Ana López Pérez", "ana.lopez@empresa.com", "Empleado", "Contadora",
     "Contabilidad", "director@empresa.com", "2024-03-15", "+52 999 123 4567",
-    "09:00", "18:00", "10", "L,M,X,J,V",
+    "09:00", "18:00", "10", "L,M,X,J,V", "Híbrido", "M,J", "Fija", ""
 ]
+
+MODE_KEYS = {"": None, "presencial": "onsite", "híbrido": "hybrid", "hibrido": "hybrid", "remoto": "remote"}
+TYPE_KEYS = {"": None, "fija": "fixed", "fijo": "fixed", "flexible": "flexible"}
 
 IMPORT_REQUIRED = {"Nombre completo", "Correo"}
 
@@ -3898,6 +4036,10 @@ IMPORT_GUIDE = [
     "• Horario propio (opcional): Hora de entrada y de salida en formato 24 h (09:00), tolerancia en minutos",
     "  y días laborables con letras separadas por comas: L, M, X, J, V, S, D. Si lo dejas vacío, se usa el general.",
     "• Máximo 500 filas por archivo. El sistema revisa todo antes de guardar: si hay errores, no se guarda nada.",
+    "• Modalidad: Presencial, Híbrido o Remoto (si la dejas vacía no cambia).",
+    "• Días en oficina (solo híbridos): letras separadas por comas, ej. M,J.",
+    "• Jornada: Fija (horario con entrada y salida) o Flexible (se mide por horas semanales).",
+    "• Horas semanales: obligatorio si la jornada es Flexible, ej. 40. Usa también 'Días laborables'.",
 ]
 
 DAY_KEYS = {"L": 0, "M": 1, "X": 2, "J": 3, "V": 4, "S": 5, "D": 6}
@@ -4117,9 +4259,40 @@ def import_people(
         except ValueError as exc:
             errors.append(str(exc))
 
+        mode = MODE_KEYS.get(text[13].lower(), "invalid")
+
+        if mode == "invalid":
+            errors.append("Modalidad inválida: usa Presencial, Híbrido o Remoto.")
+
+        office = None
+        try:
+            office = parse_days_cell(cells[14])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        if mode == "hybrid" and not office:
+            errors.append("Indica los días en oficina del esquema híbrido.")
+
+        schedule_type = TYPE_KEYS.get(text[15].lower(), "invalid")
+        if schedule_type == "invalid":
+            errors.append("Jornada inválida: usa Fija o Flexible.")
+
+        weekly = None
+        if text[16]:
+            try:
+                weekly = float(text[16])
+                if not 0 < weekly <= 80:
+                    raise ValueError
+            except ValueError:
+                errors.append("Horas semanales inválidas (1 a 80).")
+                weekly = None
+
+        if schedule_type == "flexible" and (not weekly or not days):
+            errors.append("La jornada flexible necesita horas semanales y días laborables.")
+
         custom = any(v is not None for v in (start, end, tolerance, days))
 
-        if custom and (start is None or end is None):
+        if custom and schedule_type != "flexible" and (start is None or end is None):
             errors.append("Para un horario propio indica hora de entrada y de salida.")
 
         if start is not None and end is not None and end <= start:
@@ -4135,7 +4308,8 @@ def import_people(
             "position": text[4] or None, "department": text[5] or None, "manager": manager,
             "hire": hire, "phone": text[8] or None, "start": start, "end": end,
             "tolerance": tolerance, "days": days, "custom": custom,
-            "errors": errors, "existing": existing,
+            "errors": errors, "existing": existing,"mode": mode, "office": office,
+            "schedule_type": schedule_type, "weekly": weekly
         })
 
     # ---------- 2. Jefes: que existan y que no formen ciclos ----------
@@ -4237,18 +4411,35 @@ def import_people(
 
             if item["code"]:
                 profile.employee_code = item["code"]
+
             if item["position"]:
                 profile.position = item["position"]
+
             if item["department"]:
                 profile.department = item["department"]
 
-            if item["custom"]:
+            if item["mode"]:
+                profile.work_mode = item["mode"]
+
+            if item["office"] is not None:
+                profile.office_days = ",".join(str(d) for d in item["office"])
+
+            if item["schedule_type"] == "flexible":
+                profile.schedule_type = "flexible"
+                profile.work_start_minutes = profile.work_end_minutes = profile.tolerance_minutes = None
+                profile.work_days = ",".join(str(d) for d in item["days"])
+                profile.weekly_minutes = round(item["weekly"] * 60)
+            elif item["custom"]:
+                profile.schedule_type = "fixed"
                 profile.work_start_minutes = item["start"]
                 profile.work_end_minutes = item["end"]
                 profile.tolerance_minutes = (
                     item["tolerance"] if item["tolerance"] is not None else settings.late_grace_minutes
                 )
                 profile.work_days = ",".join(str(d) for d in (item["days"] or [0, 1, 2, 3, 4]))
+                profile.weekly_minutes = None
+            elif item["schedule_type"] == "fixed":
+                profile.schedule_type = "fixed"
 
             if item["phone"]:
                 prefs = db.scalar(select(UserPreferences).where(UserPreferences.user_id == user.id))
@@ -4323,8 +4514,8 @@ def report_preview(
     _: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ):
-    users, profiles, days = build_report_days(db, data)
-    stats = summarize_report(users, days)
+    users, profiles, days, shortfalls = build_report_days(db, data)
+    stats = summarize_report(users, days, shortfalls)
 
     people = []
 
@@ -4343,6 +4534,7 @@ def report_preview(
                 counts=s["counts"],
                 hours=round(s["hours"], 2),
                 late_minutes=s["late"],
+                short_minutes=s["short"]
             )
         )
 
@@ -4363,8 +4555,8 @@ def report_export(
     _: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ):
-    users, profiles, days = build_report_days(db, data)
-    stats = summarize_report(users, days)
+    users, profiles, days, shortfalls = build_report_days(db, data)
+    stats = summarize_report(users, days, shortfalls)
     codes = {c.key: c for c in load_codes(db)}
     branding = get_branding(db)
     primary = branding.primary_color.lstrip("#").upper()
@@ -4470,6 +4662,15 @@ def report_export(
             incident_rows.append([
                 code, item.user.full_name, item.day, codes["incomplete"].code,
                 codes["incomplete"].label, 1, None, "Entrada sin salida registrada",
+            ])
+
+    for item in shortfalls:
+        code, _, _ = employee_fields(item.user, profiles)
+
+        if codes["short_hours"].include_in_incidences:
+            incident_rows.append([
+                code, item.user.full_name, item.day, codes["short_hours"].code,
+                codes["short_hours"].label, 1, item.short_minutes, item.note or "",
             ])
 
     write_table(
@@ -5252,9 +5453,192 @@ def calendar_events(
             page="spaces",
         ))
 
+    schedule = get_schedule(db, user.id)
+
+    if schedule.mode == "hybrid":
+        changes = office_changes(db, user.id, start, end)
+        holiday_dates = {e.start_date for e in events if e.type == "holiday"}
+
+        for offset in range((end - start).days + 1):
+            day = start + timedelta(days=offset)
+
+            if day.weekday() in schedule.days and day not in holiday_dates and is_office_day(schedule, day, changes):
+                change = changes.get(day)
+
+                events.append(CalendarEventOut(
+                    id=f"office-{day.isoformat()}", type="office", title="Día en oficina",
+                    subtitle=f"Día extra: {change.reason}" if change and change.reason else ("Día extra" if change else None),
+                    start_date=day, end_date=day, page="attendance",
+                ))
+
     events.sort(key=lambda e: (e.start_date, e.start_time or ""))
 
     return events
+
+# =========================================================
+# PAUSAS
+# =========================================================
+
+@app.post("/attendance/break/start", response_model=AttendanceTodayOut)
+def start_break(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    today = get_work_date()
+    attendance = get_attendance_for_date(user.id, today, db)
+
+    if not attendance["entry"]:
+        raise HTTPException(status_code=409, detail="Primero inicia tu jornada.")
+
+    if attendance["exit"]:
+        raise HTTPException(status_code=409, detail="Tu jornada de hoy ya terminó.")
+
+    if open_break(db, user.id, today):
+        raise HTTPException(status_code=409, detail="Ya estás en pausa.")
+
+    db.add(AttendanceBreak(user_id=user.id, work_date=today, started_at=datetime.now(timezone.utc)))
+    db.commit()
+
+    return build_today(db, user)
+
+
+@app.post("/attendance/break/end", response_model=AttendanceTodayOut)
+def end_break(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    current = open_break(db, user.id, get_work_date())
+
+    if not current:
+        raise HTTPException(status_code=409, detail="No estás en pausa.")
+
+    current.ended_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return build_today(db, user)
+
+
+# =========================================================
+# DÍAS DE OFICINA (HÍBRIDOS)
+# =========================================================
+
+
+def office_days_out(db: Session, user: User, schedule: Schedule, days: int) -> list[OfficeDayOut]:
+    today = get_work_date()
+    end = today + timedelta(days=days - 1)
+    changes = office_changes(db, user.id, today, end)
+
+    holidays = {
+        h.holiday_date: h.name
+        for h in db.scalars(
+            select(Holiday).where(Holiday.holiday_date >= today, Holiday.holiday_date <= end)
+        ).all()
+    }
+
+    result = []
+
+    for offset in range(days):
+        day = today + timedelta(days=offset)
+        change = changes.get(day)
+
+        result.append(
+            OfficeDayOut(
+                day=day,
+                office=is_office_day(schedule, day, changes),
+                base_office=day.weekday() in schedule.office_days,
+                change=change.kind if change else None,
+                reason=change.reason if change else None,
+                is_workday=day.weekday() in schedule.days,
+                holiday=holidays.get(day),
+            )
+        )
+
+    return result
+
+
+@app.get("/office-days/mine", response_model=list[OfficeDayOut])
+def my_office_days(
+    days: int = 21,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    schedule = get_schedule(db, user.id)
+
+    if schedule.mode != "hybrid":
+        return []
+
+    return office_days_out(db, user, schedule, max(1, min(days, 60)))
+
+
+@app.post("/office-days/mine", response_model=list[OfficeDayOut])
+def change_office_day(
+    data: OfficeChangeIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    schedule = get_schedule(db, user.id)
+
+    if schedule.mode != "hybrid":
+        raise HTTPException(status_code=400, detail="Esta opción solo aplica para la modalidad híbrida.")
+
+    today = get_work_date()
+
+    if data.change_date < today:
+        raise HTTPException(status_code=400, detail="No puedes cambiar días pasados.")
+
+    if data.change_date == today and get_attendance_for_date(user.id, today, db)["entry"]:
+        raise HTTPException(status_code=409, detail="Ya iniciaste tu jornada de hoy; el cambio ya no aplica.")
+
+    existing = db.scalar(
+        select(OfficeDayChange).where(
+            OfficeDayChange.user_id == user.id,
+            OfficeDayChange.change_date == data.change_date,
+        )
+    )
+
+    base_office = data.change_date.weekday() in schedule.office_days
+
+    if data.kind == "clear":
+        if existing:
+            db.delete(existing)
+    elif data.kind in ("add", "remove"):
+        if data.kind == "add" and base_office:
+            raise HTTPException(status_code=400, detail="Ese día ya es de oficina.")
+
+        if data.kind == "remove" and not base_office:
+            raise HTTPException(status_code=400, detail="Ese día no es de oficina.")
+
+        if data.kind == "add" and data.change_date.weekday() not in schedule.days:
+            raise HTTPException(status_code=400, detail="Ese día no es laborable para ti.")
+
+        if existing is None:
+            existing = OfficeDayChange(user_id=user.id, change_date=data.change_date)
+            db.add(existing)
+
+        existing.kind = data.kind
+        existing.reason = (data.reason or "").strip() or None
+
+        profile = get_profile(db, user.id)
+
+        if profile and profile.manager_id:
+            create_notification(
+                db,
+                profile.manager_id,
+                "office_day",
+                f"{user.full_name} cambió un día de oficina",
+                (
+                    f"{'Irá a la oficina' if data.kind == 'add' else 'Trabajará remoto'} el "
+                    f"{data.change_date:%d/%m/%Y}" + (f". Motivo: {existing.reason}" if existing.reason else ".")
+                ),
+                "team",
+                f"office-{user.id}-{data.change_date.isoformat()}-{data.kind}",
+            )
+    else:
+        raise HTTPException(status_code=400, detail="Cambio inválido.")
+
+    db.commit()
+
+    return office_days_out(db, user, schedule, 21)
 
 # =========================================================
 # FRONTEND ESTÁTICO

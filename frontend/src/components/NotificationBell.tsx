@@ -13,7 +13,8 @@ const KIND_ICON: Record<string, IconName> = {
     booking: 'building',
     weekly: 'trend',
     company: 'megaphone',
-    meeting_reminder: 'clock'
+    meeting_reminder: 'clock',
+    office_day: 'building',
 }
 
 

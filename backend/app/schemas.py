@@ -56,20 +56,9 @@ class UserCreate(BaseModel):
 
 
 class AttendanceInput(BaseModel):
-    latitude: float = Field(
-        ge=-90,
-        le=90,
-    )
-
-    longitude: float = Field(
-        ge=-180,
-        le=180,
-    )
-
-    accuracy_meters: float = Field(
-        ge=0,
-        le=10000,
-    )
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    accuracy_meters: float | None = Field(default=None, ge=0, le=10000)
 
 
 class AttendanceOut(BaseModel):
@@ -82,6 +71,7 @@ class AttendanceOut(BaseModel):
     source: str
     status: str
     note: str | None = None
+    location_mode: str = "office"
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -135,11 +125,46 @@ class AttendanceAdminOut(AttendanceOut):
     user_email: EmailStr
 
 
+class BreakOut(BaseModel):
+    started_at: datetime
+    ended_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AttendanceTodayOut(BaseModel):
     work_date: date
     entry: AttendanceOut | None = None
     exit: AttendanceOut | None = None
     is_on_vacation: bool = False
+    work_mode: str = "onsite"
+    schedule_type: str = "fixed"
+    is_office_day: bool = True
+    requires_location: bool = True
+    start_time: str | None = None
+    end_time: str | None = None
+    breaks: list[BreakOut] = []
+    on_break: bool = False
+    worked_minutes: int = 0
+    expected_minutes: int = 0
+    week_worked_minutes: int = 0
+    week_target_minutes: int = 0
+
+
+class OfficeDayOut(BaseModel):
+    day: date
+    office: bool
+    base_office: bool
+    change: str | None = None
+    reason: str | None = None
+    is_workday: bool
+    holiday: str | None = None
+
+
+class OfficeChangeIn(BaseModel):
+    change_date: date
+    kind: str  # add | remove | clear
+    reason: str | None = Field(default=None, max_length=300)
 
 
 class QrOut(BaseModel):
@@ -352,6 +377,7 @@ class TodayEntryOut(BaseModel):
     entry_at: datetime
     exit_at: datetime | None = None
     status: str
+    remote: bool = False
 
 
 class TodayAbsenceOut(BaseModel):
@@ -469,6 +495,11 @@ class ScheduleOut(BaseModel):
     tolerance_minutes: int
     work_days: list[int]
     is_custom: bool
+    work_mode: str = "onsite"
+    schedule_type: str = "fixed"
+    weekly_minutes: int = 2400
+    daily_minutes: int = 480
+    office_days: list[int] = []
 
 
 class PersonOut(BaseModel):
@@ -500,20 +531,41 @@ class ProfileUpdateIn(BaseModel):
     tolerance_minutes: int | None = Field(default=None, ge=0, le=180)
     work_days: list[int] | None = None
     is_top_level: bool = False
+    work_mode: str = "onsite"
+    schedule_type: str = "fixed"
+    weekly_hours: float | None = Field(default=None, gt=0, le=80)
+    office_days: list[int] | None = None
 
     @model_validator(mode="after")
     def valid_schedule(self):
-        if not self.custom_schedule:
-            return self
+        if self.work_mode not in {"onsite", "hybrid", "remote"}:
+            raise ValueError("Modalidad inválida.")
 
-        if not self.start_time or not self.end_time or self.tolerance_minutes is None or not self.work_days:
-            raise ValueError("Completa entrada, salida, tolerancia y días del horario propio.")
+        if self.schedule_type not in {"fixed", "flexible"}:
+            raise ValueError("Tipo de jornada inválido.")
 
-        if to_minutes(self.end_time) <= to_minutes(self.start_time):
-            raise ValueError("La salida debe ser posterior a la entrada.")
-
-        if any(day < 0 or day > 6 for day in self.work_days):
+        if self.work_days and any(day < 0 or day > 6 for day in self.work_days):
             raise ValueError("Los días van de 0 (lunes) a 6 (domingo).")
+
+        if self.schedule_type == "flexible":
+            if not self.work_days or not self.weekly_hours:
+                raise ValueError("La jornada flexible necesita días laborables y horas semanales.")
+
+        elif self.custom_schedule:
+            if not self.start_time or not self.end_time or self.tolerance_minutes is None or not self.work_days:
+                raise ValueError("Completa entrada, salida, tolerancia y días del horario propio.")
+
+            if to_minutes(self.end_time) <= to_minutes(self.start_time):
+                raise ValueError("La salida debe ser posterior a la entrada.")
+
+        if self.work_mode == "hybrid":
+            days = self.work_days if (self.schedule_type == "flexible" or self.custom_schedule) else [0, 1, 2, 3, 4]
+
+            if not self.office_days:
+                raise ValueError("Indica los días de oficina del esquema híbrido.")
+
+            if any(day not in days for day in self.office_days):
+                raise ValueError("Los días de oficina deben ser días laborables.")
 
         return self
 
@@ -662,6 +714,7 @@ class ReportPersonOut(BaseModel):
     counts: dict[str, int]
     hours: float
     late_minutes: int
+    short_minutes: int = 0 
 
 
 class ReportPreviewOut(BaseModel):

@@ -129,6 +129,10 @@ class AttendanceRecord(Base):
         nullable=True,
     )
 
+    location_mode: Mapped[str] = mapped_column(
+        String(10), default="office"
+    )   # office | remote
+
 
 class VacationRequest(Base):
     __tablename__ = "vacation_requests"
@@ -398,6 +402,12 @@ class EmployeeProfile(Base):
     tolerance_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_days: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_top_level: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    #Modo de trabajo
+    work_mode: Mapped[str] = mapped_column(String(10), default="onsite")       # onsite | hybrid | remote
+    schedule_type: Mapped[str] = mapped_column(String(10), default="fixed")    # fixed | flexible
+    weekly_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    office_days: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "1,3" = martes y jueves
 
 class IncidenceCode(Base):
     __tablename__ = "incidence_codes"
@@ -454,4 +464,29 @@ class PostResponse(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+class AttendanceBreak(Base):
+    __tablename__ = "attendance_breaks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    work_date: Mapped[date] = mapped_column(Date, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OfficeDayChange(Base):
+    __tablename__ = "office_day_changes"
+
+    __table_args__ = (UniqueConstraint("user_id", "change_date", name="uq_office_change"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    change_date: Mapped[date] = mapped_column(Date, index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # add = va a la oficina | remove = trabaja remoto
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

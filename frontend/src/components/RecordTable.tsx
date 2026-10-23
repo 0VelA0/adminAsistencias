@@ -99,9 +99,9 @@ export function RecordTable({
                                 <td data-label="Origen">
                                     {record.source === 'admin'
                                         ? 'Registro manual'
-                                        : `A ${Math.round(
-                                              record.distance_meters
-                                          )} m de la oficina`}
+                                        : record.location_mode === 'remote'
+                                            ? 'Remoto'
+                                            : `A ${Math.round(record.distance_meters)} m de la oficina`}
                                 </td>
 
                                 <td data-label="Nota">

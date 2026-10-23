@@ -101,9 +101,7 @@ export function AttendanceHistory({
                                                     {day.hours}
                                                 </td>
                                                 <td data-label="Ubicación">
-                                                    {first?.source === 'admin'
-                                                        ? 'Registro manual'
-                                                        : 'Oficina Central'}
+                                                    {first?.source === 'admin' ? 'Registro manual' : first?.location_mode === 'remote' ? 'Remoto' : 'Oficina Central'}
                                                 </td>
                                                 <td data-label="Estado">
                                                     <span

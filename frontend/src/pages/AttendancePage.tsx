@@ -5,12 +5,14 @@ import type {
     VacationRequest,
     PermissionRequest
 } from '../lib/types'
+import { api } from '../lib/api'
 import { useAttendanceRegister } from '../lib/useAttendanceRegister'
 import { AttendanceCard } from '../components/AttendanceCard'
 import { MonthlySummaryCard } from '../components/MonthlySummaryCard'
 import { AttendanceHistory } from '../components/AttendanceHistory'
 import { PermissionsCard } from '../components/PermissionsCard'
 import { PermissionModal } from '../components/PermissionModal'
+import { OfficeDaysCard } from '../components/OfficeDaysCard'
 
 export function AttendancePage({
     token,
@@ -39,7 +41,8 @@ export function AttendancePage({
     const [now, setNow] = useState(new Date())
     const [showPermission, setShowPermission] = useState(false)
 
-    const { message, working, register } = useAttendanceRegister({
+    // CAMBIO 1: ahora también sacamos startBreak y endBreak
+    const { message, working, register, startBreak, endBreak } = useAttendanceRegister({
         token,
         today,
         onRecord,
@@ -68,14 +71,16 @@ export function AttendancePage({
                     today={today}
                     working={working}
                     isStation={Boolean(station)}
-                    onRegisterEntry={() => 
+                    onRegisterEntry={() =>
                         station
-                            ? register('/qr-attendance', {station})
+                            ? register('/qr-attendance', { station })
                             : register('/attendance/entry')}
                     onRegisterExit={() =>
                         station
-                            ? register('/qr-attendance', {station})
+                            ? register('/qr-attendance', { station })
                             : register('/attendance/exit')}
+                    onStartBreak={startBreak}   // CAMBIO 2
+                    onEndBreak={endBreak}       // CAMBIO 2
                 />
 
                 <MonthlySummaryCard
@@ -95,6 +100,13 @@ export function AttendancePage({
                         onCreated={onPermissionsChange}/>
                 )}
             </section>
+
+            {today.work_mode === 'hybrid' && (
+                <OfficeDaysCard
+                    token={token}
+                    onChanged={() => api<AttendanceToday>('/attendance/today', {}, token).then(onTodayChange).catch(() => undefined)}
+                />
+            )}
 
             <AttendanceHistory records={records} />
         </div>

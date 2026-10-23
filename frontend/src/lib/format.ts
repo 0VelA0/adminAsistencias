@@ -94,3 +94,13 @@ export function timeAgo(value: string) {
 
 export const longDate = (value: string) =>
     toDate(value).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+
+export function formatMinutes(total: number) {
+    const hours = Math.floor(total / 60)
+    const minutes = Math.round(total % 60)
+
+    if (!hours) return `${minutes} min`
+    if (!minutes) return `${hours} h`
+
+    return `${hours} h ${minutes} min`
+}

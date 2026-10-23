@@ -101,14 +101,16 @@ export function TodayOverview({ state }: { state: AsyncState<TodayOverviewData> 
                                         user={item.user}
                                         line={`Entrada ${hhmm(item.entry_at)} · ${
                                             item.exit_at ? `Salida ${hhmm(item.exit_at)}` : 'En curso'
-                                        }`}
+                                        }${item.remote ? ' · Remoto' : ''}`}
                                         badge={
                                             item.status === 'late' ? (
                                                 <span className="badge late">Retardo</span>
                                             ) : undefined
                                         }
                                     />
+                                    
                                 ))}
+                                
                             </div>
                         )}
                     </article>

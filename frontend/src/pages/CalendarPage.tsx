@@ -14,6 +14,7 @@ const TYPES: Record<CalendarEvent['type'], { label: string; icon: IconName }> = 
     permission: { label: 'Permiso', icon: 'file' },
     holiday: { label: 'Festivo', icon: 'calendar' },
     team_absence: { label: 'Ausencia del equipo', icon: 'users' },
+    office: { label: 'Día en oficina', icon: 'building' },
 }
 
 const WEEK_HEAD = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']

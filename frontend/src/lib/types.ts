@@ -18,6 +18,7 @@ export type AttendanceRecord = {
     source: 'employee' | 'admin'
     status: 'normal' | 'late'
     note: string | null
+    location_mode: 'office' | 'remote'
 }
 
 export type AdminRecord = AttendanceRecord & {
@@ -31,6 +32,18 @@ export type AttendanceToday = {
     entry: AttendanceRecord | null
     exit: AttendanceRecord | null
     is_on_vacation: boolean
+    work_mode: WorkMode
+    schedule_type: 'fixed' | 'flexible'
+    is_office_day: boolean
+    requires_location: boolean
+    start_time: string | null
+    end_time: string | null
+    breaks: { started_at: string; ended_at: string | null }[]
+    on_break: boolean
+    worked_minutes: number
+    expected_minutes: number
+    week_worked_minutes: number
+    week_target_minutes: number
 }
 
 export type VacationRequest = {
@@ -97,6 +110,7 @@ export type TodayEntry = {
     entry_at: string
     exit_at: string | null
     status: 'normal' | 'late'
+    remote: boolean
 }
 
 export type TodayAbsence = {
@@ -202,6 +216,11 @@ export type Schedule = {
     tolerance_minutes: number
     work_days: number[]
     is_custom: boolean
+    work_mode: WorkMode
+    schedule_type: 'fixed' | 'flexible'
+    weekly_minutes: number
+    daily_minutes: number
+    office_days: number[]
 }
 
 export type Person = {
@@ -315,7 +334,7 @@ export type ResponsePerson = {
 
 export type CalendarEvent = {
     id: string
-    type: 'holiday' | 'vacation' | 'permission' | 'meeting' | 'booking' | 'team_absence'
+    type: 'holiday' | 'vacation' | 'permission' | 'meeting' | 'booking' | 'team_absence' | 'office'
     title: string
     subtitle: string | null
     start_date: string
@@ -324,4 +343,22 @@ export type CalendarEvent = {
     end_time: string | null
     page: Page
     pending: boolean
+}
+
+export type WorkMode = 'onsite' | 'hybrid' | 'remote'
+
+export const MODE_LABEL: Record<WorkMode, string> = {
+    onsite: 'Presencial',
+    hybrid: 'Híbrido',
+    remote: 'Remoto',
+}
+
+export type OfficeDay = {
+    day: string
+    office: boolean
+    base_office: boolean
+    change: 'add' | 'remove' | null
+    reason: string | null
+    is_workday: boolean
+    holiday: string | null
 }

@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { DAY_LABELS, formatDay } from '../lib/format'
+import { DAY_LABELS, formatDay, formatMinutes } from '../lib/format'
 import { deptColors, seniority } from '../lib/people'
 import type { Person } from '../lib/types'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
+import { MODE_LABEL } from '../lib/types'
 
 function PersonLink({ person, onSelect }: { person: Person; onSelect: (p: Person) => void }) {
     return (
@@ -105,6 +106,13 @@ export function PersonDrawer({
                     <div>
                         <dt><Icon name="clock" size={14} /> Horario</dt>
                         <dd>
+                            <strong>{MODE_LABEL[s.work_mode]}</strong>
+                            {s.work_mode === 'hybrid' && ` · oficina: ${s.office_days.map(d => DAY_LABELS[d]).join(' ')}`}
+                            <br />
+                            {s.schedule_type === 'flexible'
+                                ? `Flexible · ${formatMinutes(s.weekly_minutes)} por semana`
+                                : `${s.start_time}–${s.end_time} · ${s.work_days.map(d => DAY_LABELS[d]).join(' ')}`}
+                            <br />
                             {s.start_time}–{s.end_time} · {s.work_days.map(d => DAY_LABELS[d]).join(' ')}
                             <small className="cell-sub">
                                 {s.is_custom ? 'Horario propio' : 'Horario general'} · {s.tolerance_minutes} min de tolerancia
