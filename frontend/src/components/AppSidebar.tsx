@@ -23,11 +23,8 @@ const EMPLOYEE_ITEMS: Item[] = [
 const ADMIN_ITEMS: Item[] = [
   { page: 'admin-home', icon: 'home', label: 'Resumen' },
   { page: 'admin-requests', icon: 'clipboard', label: 'Solicitudes' },
-  { page: 'news', icon: 'megaphone', label: 'Comunicados' },
-  { page: 'calendar', icon: 'calendar', label: 'Calendario' },
   { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
   { page: 'admin-reports', icon: 'download', label: 'Reportes' },
-  { page: 'team', icon: 'org', label: 'Equipo' },
   { page: 'users', icon: 'users', label: 'Usuarios' },
   { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
   { page: 'admin-holidays', icon: 'calendar', label: 'Festivos' },
