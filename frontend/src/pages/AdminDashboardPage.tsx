@@ -11,6 +11,7 @@ import { Icon } from '../components/Icon'
 import { ymd } from '../lib/format'
 import { ManualRecordModal } from '../components/ManualRecordModal'
 import type { ManualMode } from '../components/ManualRecordModal'
+import { SearchField } from '../components/SearchField';
 
 type Section = 'home' | 'requests' | 'attendance'
 
@@ -185,24 +186,20 @@ function AdminAttendance({ token, refresh }: { token: string; refresh: number })
             <section className="dashboard-card history-card">
                 <div className="section-title history-title">
                     <h2>Registro general</h2>
+                    <span>{filtered.length} registros</span>
+                </div>
+
+                <div className="toolbar">
+                    <SearchField value={query} onChange={setQuery} placeholder="Buscar empleado…" />
 
                     <button type="button" className="compact" onClick={() => setManual({ type: 'create' })}>
-                        <Icon name="plus" size={14} /> Registro manual
+                        <Icon name="plus" size={15} /> Registro manual
                     </button>
                 </div>
 
                 <StateView state={records}>
                     {() => (
                         <>
-                            <div className="table-toolbar">
-                                <input
-                                    type="search"
-                                    placeholder="Buscar empleado…"
-                                    value={query}
-                                    onChange={e => setQuery(e.target.value)}
-                                />
-                            </div>
-
                             <RecordTable
                                 records={filtered.slice(0, visible)}
                                 admin

@@ -3,6 +3,7 @@ import { longDate, timeAgo, ymd } from '../lib/format'
 import type { Post } from '../lib/types'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
+import { ImageLightbox } from './ImageLightbox'
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
 
@@ -51,6 +52,7 @@ export function PostCard({
     const past = meeting && post.meeting_date !== null && post.meeting_date < ymd(new Date())
     const long = post.body.length > 420
     const body = long && !expanded ? `${post.body.slice(0, 400).trimEnd()}…` : post.body
+    const [viewer, setViewer] = useState(false)
 
     return (
         <article
@@ -144,7 +146,18 @@ export function PostCard({
                 </p>
             )}
 
-            {post.image && <img className="post-image" src={post.image} alt="" loading="lazy" />}
+            {post.image && (
+                <button type="button" className="post-image-button" aria-label="Ver imagen completa" onClick={() => setViewer(true)}>
+                    <img className="post-image" src={post.image} alt="" loading="lazy" />
+                    <span className="post-image-hint">
+                        <Icon name="plus" size={14} /> Ver completa
+                    </span>
+                </button>
+            )}
+
+            {viewer && post.image && (
+                <ImageLightbox src={post.image} alt={post.title} onClose={() => setViewer(false)} />
+            )}
 
             <footer className="post-foot">
                 {meeting ? (

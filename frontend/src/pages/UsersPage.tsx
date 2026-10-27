@@ -13,6 +13,7 @@ import { useToast } from '../components/Toast'
 import { DeleteUserModal } from '../components/DeleteUserModal'
 import { ImportPeopleModal } from '../components/ImportPeopleModal'
 import { PersonProfileModal } from '../components/PersonProfileModal'
+import { ActionMenu } from '../components/ActionMenu'
 
 type Credentials = {
     title: string
@@ -252,41 +253,42 @@ export function UsersPage({
                                                             </span>
                                                         </td>
 
-                                                        <td data-label="Acciones">
+                                                        <td data-label="Acciones" className="col-actions">
                                                             {isMe ? (
-                                                                '—'
+                                                                <span className="you-chip">Tu cuenta</span>
                                                             ) : (
-                                                                <div className="row-actions">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        className="secondary compact" 
-                                                                        onClick={() => setProfileFor(user.id)}
-                                                                    >
-                                                                        Perfil
-                                                                    </button>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        className="compact"
-                                                                        disabled={busyId === user.id}
-                                                                        onClick={() => setEditing(user)}
-                                                                    >
-                                                                        Editar
-                                                                    </button>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        className="secondary compact"
-                                                                        disabled={busyId === user.id}
-                                                                        onClick={() => toggleActive(user)}
-                                                                    >
-                                                                        {user.is_active ? 'Desactivar' : 'Activar'}
-                                                                    </button>
-
-                                                                    <button type="button" className="danger compact" disabled={busyId === user.id} onClick={() => setDeleting(user)}>
-                                                                        Eliminar
-                                                                    </button>
-                                                                </div>
+                                                                <ActionMenu
+                                                                    label={`Acciones para ${user.full_name}`}
+                                                                    items={[
+                                                                        {
+                                                                            label: 'Perfil laboral',
+                                                                            hint: 'Puesto, jefe, horario y modalidad',
+                                                                            icon: 'briefcase',
+                                                                            onSelect: () => setProfileFor(user.id),
+                                                                        },
+                                                                        {
+                                                                            label: 'Editar cuenta',
+                                                                            hint: 'Nombre, rol y contraseña',
+                                                                            icon: 'edit',
+                                                                            onSelect: () => setEditing(user),
+                                                                        },
+                                                                        {
+                                                                            label: user.is_active ? 'Desactivar' : 'Activar',
+                                                                            hint: user.is_active ? 'Bloquea el acceso y conserva su historial' : 'Le devuelve el acceso',
+                                                                            icon: user.is_active ? 'x' : 'check',
+                                                                            disabled: busyId === user.id,
+                                                                            onSelect: () => toggleActive(user),
+                                                                        },
+                                                                        {
+                                                                            label: 'Eliminar',
+                                                                            hint: 'Borra a la persona y todo su historial',
+                                                                            icon: 'trash',
+                                                                            danger: true,
+                                                                            dividerBefore: true,
+                                                                            onSelect: () => setDeleting(user),
+                                                                        },
+                                                                    ]}
+                                                                />
                                                             )}
                                                         </td>
                                                     </tr>
