@@ -1,99 +1,75 @@
-import type { VacationRequest } from '../lib/types'
+import { api } from '../lib/api'
+import { formatRange, ymd } from '../lib/format'
+import { useAsync } from '../lib/useAsync'
+import type { VacationBalance, VacationRequest } from '../lib/types'
+import { Icon } from './Icon'
 
 export function VacationSummaryCard({
+    token,
     requests,
+    onOpen,
 }: {
+    token: string
     requests: VacationRequest[]
+    onOpen: () => void
 }) {
-    const pendingRequests = requests.filter(
-        request => request.status === 'pending'
-    )
+    const balance = useAsync(() => api<VacationBalance>('/vacations/balance', {}, token), [token, requests])
+    const b = balance.data
+    const today = ymd(new Date())
 
-    const approvedRequests = requests.filter(
-        request => request.status === 'approved'
-    )
+    const next = [...requests]
+        .filter(r => r.status === 'approved' && r.end_date.slice(0, 10) >= today)
+        .sort((a, c) => a.start_date.localeCompare(c.start_date))[0]
 
-    const rejectedRequests = requests.filter(
-        request => request.status === 'rejected'
-    )
+    const share = (days: number) => (b && b.total_days ? `${(days / b.total_days) * 100}%` : '0%')
 
     return (
-        <article className="dashboard-card">
-
+        <article className="dashboard-card summary-card">
             <div className="dashboard-card-title">
-
                 <div>
-                    <p className="eyebrow">
-                        SOLICITUDES
-                    </p>
-
-                    <h2>
-                        Mis solicitudes
-                    </h2>
+                    <p className="eyebrow">VACACIONES</p>
+                    <h2>Mis vacaciones</h2>
                 </div>
-
                 <span className="dashboard-card-icon">
-                    ▣
+                    <Icon name="sun" />
                 </span>
-
             </div>
 
-
-            <div className="vacation-stats">
-
-                <div>
-                    <strong>
-                        {pendingRequests.length}
-                    </strong>
-
-                    <span>
-                        Pendientes
-                    </span>
+            <div className="summary-body">
+                <div className="balance-hero">
+                    <strong>{b ? b.available_days : '–'}</strong>
+                    <span>días disponibles{b ? ` de ${b.total_days} en ${b.year}` : ''}</span>
                 </div>
 
-                <div>
-                    <strong>
-                        {approvedRequests.length}
-                    </strong>
-
-                    <span>
-                        Aprobadas
-                    </span>
+                <div className="stack-bar" aria-hidden="true">
+                    <span className="used" style={{ width: share(b?.used_days ?? 0) }} />
+                    <span className="pending" style={{ width: share(b?.pending_days ?? 0) }} />
                 </div>
 
-                <div>
-                    <strong>
-                        {rejectedRequests.length}
-                    </strong>
-
-                    <span>
-                        Rechazadas
-                    </span>
+                <div className="stack-legend">
+                    <span><i className="used" /> Usados {b?.used_days ?? 0}</span>
+                    <span><i className="pending" /> Pendientes {b?.pending_days ?? 0}</span>
+                    <span><i className="free" /> Libres {b?.available_days ?? 0}</span>
                 </div>
 
+                <div className={`next-box ${next ? '' : 'empty'}`}>
+                    <Icon name={next ? 'sun' : 'calendar'} size={16} />
+                    <div>
+                        <span>{next ? 'Próximas vacaciones' : 'Sin vacaciones programadas'}</span>
+                        {next && (
+                            <strong>
+                                {formatRange(next.start_date, next.end_date)} · {next.days} días
+                            </strong>
+                        )}
+                    </div>
+                </div>
             </div>
 
-
-            {pendingRequests.length > 0 ? (
-                <div className="vacation-next-request">
-
-                    <span>
-                        Próxima solicitud pendiente
-                    </span>
-
-                    <strong>
-                        {pendingRequests[0].start_date}
-                        {' → '}
-                        {pendingRequests[0].end_date}
-                    </strong>
-
-                </div>
-            ) : (
-                <div className="vacation-no-pending">
-                    No tienes solicitudes pendientes.
-                </div>
-            )}
-
+            <div className="summary-footer">
+                <button type="button" className="compact" onClick={onOpen}>
+                    <Icon name="plus" size={14} /> Solicitar vacaciones
+                </button>
+            </div>
         </article>
     )
 }

@@ -16,7 +16,7 @@ export type AttendanceRecord = {
     distance_meters: number
     accuracy_meters: number
     source: 'employee' | 'admin'
-    status: 'normal' | 'late'
+    status: 'normal' | 'late' | 'early'
     note: string | null
     location_mode: 'office' | 'remote'
 }
@@ -44,6 +44,7 @@ export type AttendanceToday = {
     expected_minutes: number
     week_worked_minutes: number
     week_target_minutes: number
+    breaks_allowed: boolean
 }
 
 export type VacationRequest = {

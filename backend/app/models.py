@@ -333,6 +333,7 @@ class Notification(Base):
     body: Mapped[str] = mapped_column(String(500))
     page: Mapped[str] = mapped_column(String(30))
     dedupe_key: Mapped[str] = mapped_column(String(120))
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

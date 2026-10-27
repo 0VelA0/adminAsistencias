@@ -36,9 +36,16 @@ import { TeamPage } from './pages/TeamPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { NewsPage } from './pages/NewsPage'
 import { CalendarPage } from './pages/CalendarPage'
+import { clearToken, isRemembered, readToken, saveToken } from './lib/session'
+import { useIdleTimeout } from './lib/useIdleTimeout'
 
 
 function App() {
+
+    const IDLE_LIMIT = 30 * 60_000 // 30 minutos sin actividad
+    
+    const IDLE_WARNING = 60_000    // aviso 1 minuto antes
+
     const [token, setToken] = useState(
         localStorage.getItem(
             'attendance_token'
@@ -108,7 +115,7 @@ function App() {
             const message = error instanceof Error ? error.message : ''
 
                 if (/token|desactivado/i.test(message)) {
-                    localStorage.removeItem('attendance_token')
+                    clearToken()
                     setToken('')
                     setUser(null)
                     setToday(null)
@@ -144,6 +151,9 @@ function App() {
 
     const [loadError, setLoadError] = useState('')
     const online = useOnline()
+
+    const [remembered, setRemembered] = useState(isRemembered)
+    const [loginNotice, setLoginNotice] = useState('')
 
     useEffect(() => {
         if (token) {
@@ -181,16 +191,23 @@ function App() {
 
 
     const logout = () => {
-        localStorage.removeItem(
-            'attendance_token'
-        )
-
+        clearToken()
         setToken('')
         setUser(null)
         setToday(null)
         setRecords([])
         setAdminView(false)
     }
+
+    const { secondsLeft, stayActive } = useIdleTimeout({
+        enabled: Boolean(token && user) && !remembered,
+        timeoutMs: IDLE_LIMIT,
+        warningMs: IDLE_WARNING,
+        onTimeout: () => {
+            logout()
+            setLoginNotice('Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.')
+        },
+    })
 
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === '1')
 
@@ -234,8 +251,10 @@ function App() {
     if (!token) {
         return (
             <LoginPage
-                onLogin={(newToken, newUser) => {
-                    localStorage.setItem('attendance_token', newToken)
+                onLogin={(newToken, newUser, remember) => {
+                    saveToken(newToken, remember)
+                    setRemembered(remember)
+                    setLoginNotice('')
                     setToken(newToken)
                     setUser(newUser)
                 }}
@@ -331,6 +350,7 @@ function App() {
                                 onNavigate={setActivePage}
                                 vacationRequests={vacationRequests}
                                 onRequestsChange={loadVacationRequests}
+                                permissionRequests={permissionRequests}
                             />       
                         )}
 
@@ -387,6 +407,27 @@ function App() {
 
                 )}
             </main>
+
+            {secondsLeft !== null && (
+                <div className="modal-backdrop">
+                    <div className="modal session-modal" role="alertdialog" aria-live="assertive">
+                        <div className="session-count">{secondsLeft}</div>
+                        <h2>¿Sigues ahí?</h2>
+                        <p className="muted">
+                            Por seguridad, tu sesión se cerrará en {secondsLeft} segundos por inactividad.
+                        </p>
+
+                        <div className="modal-actions">
+                            <button type="button" className="secondary" onClick={logout}>
+                                Cerrar sesión
+                            </button>
+                            <button type="button" onClick={stayActive}>
+                                Seguir conectado
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
 
     )

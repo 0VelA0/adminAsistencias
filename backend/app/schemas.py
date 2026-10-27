@@ -20,6 +20,7 @@ def count_workdays(start: date, end: date) -> int:
 class LoginInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
+    remember: bool = False
 
 
 class TokenOut(BaseModel):
@@ -149,6 +150,7 @@ class AttendanceTodayOut(BaseModel):
     expected_minutes: int = 0
     week_worked_minutes: int = 0
     week_target_minutes: int = 0
+    breaks_allowed: bool = False
 
 
 class OfficeDayOut(BaseModel):
@@ -520,6 +522,7 @@ class PersonOut(BaseModel):
 
 
 class ProfileUpdateIn(BaseModel):
+    
     employee_code: str | None = Field(default=None, max_length=30)
     position: str | None = Field(default=None, max_length=100)
     department: str | None = Field(default=None, max_length=100)
@@ -538,6 +541,9 @@ class ProfileUpdateIn(BaseModel):
 
     @model_validator(mode="after")
     def valid_schedule(self):
+        if self.work_mode == "onsite" and self.schedule_type == "flexible":
+            raise ValueError("La modalidad presencial requiere horario fijo.")
+
         if self.work_mode not in {"onsite", "hybrid", "remote"}:
             raise ValueError("Modalidad inválida.")
 

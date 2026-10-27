@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { formatMinutes, parseServerDate } from '../lib/format'
+import { formatMinutes, parseServerDate, toMin } from '../lib/format'
 import { MODE_LABEL } from '../lib/types'
 import type { AttendanceToday } from '../lib/types'
 import { Icon } from './Icon'
+
 
 const RADIUS = 46
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
@@ -57,6 +58,24 @@ export function AttendanceCard({
     const progress = today.expected_minutes ? Math.min(1, worked / today.expected_minutes) : 0
     const weekWorked = today.week_worked_minutes - today.worked_minutes + worked
     const weekProgress = today.week_target_minutes ? Math.min(1, weekWorked / today.week_target_minutes) : 0
+
+    const finish = () => {
+        if (today.is_office_day && today.end_time) {
+            const now = new Date()
+            const minutes = now.getHours() * 60 + now.getMinutes()
+
+            if (
+                minutes < toMin(today.end_time) &&
+                !window.confirm(
+                    `Tu salida es a las ${today.end_time}. Si terminas ahora, quedará registrada como salida anticipada. ¿Continuar?`
+                )
+            ) {
+                return
+            }
+        }
+
+        onRegisterExit()
+    }
 
     const state = !today.entry
         ? { label: 'Sin iniciar', tone: 'idle' }
@@ -130,9 +149,9 @@ export function AttendanceCard({
                     </span>
 
                     <small>
-                        {flexible
-                            ? `Jornada flexible · guía de ${formatMinutes(today.expected_minutes)} al día`
-                            : `Horario ${today.start_time}–${today.end_time}`}
+                        {today.start_time
+                            ? `Horario ${today.start_time}–${today.end_time}${today.is_office_day ? ' · sin pausas' : ''}`
+                            : `Jornada flexible · guía de ${formatMinutes(today.expected_minutes)} al día`}
                     </small>
 
                     {today.entry && <small>Inicio: {hhmm(today.entry.recorded_at)}</small>}
@@ -168,17 +187,18 @@ export function AttendanceCard({
 
                 {running && (
                     <>
-                        {today.on_break ? (
-                            <button type="button" disabled={working} onClick={onEndBreak}>
-                                <Icon name="clock" size={16} /> Reanudar
-                            </button>
-                        ) : (
-                            <button type="button" className="secondary" disabled={working} onClick={onStartBreak}>
-                                <Icon name="clock" size={16} /> Pausa
-                            </button>
-                        )}
+                        {today.breaks_allowed &&
+                            (today.on_break ? (
+                                <button type="button" disabled={working} onClick={onEndBreak}>
+                                    <Icon name="clock" size={16} /> Reanudar
+                                </button>
+                            ) : (
+                                <button type="button" className="secondary" disabled={working} onClick={onStartBreak}>
+                                    <Icon name="clock" size={16} /> Pausa
+                                </button>
+                            ))}
 
-                        <button type="button" className="secondary" disabled={working} onClick={onRegisterExit}>
+                        <button type="button" className="secondary" disabled={working} onClick={finish}>
                             <Icon name="logout" size={16} /> Terminar jornada
                         </button>
                     </>

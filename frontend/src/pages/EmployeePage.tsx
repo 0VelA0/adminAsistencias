@@ -2,6 +2,7 @@ import type {
     AttendanceRecord,
     AttendanceToday,
     VacationRequest,
+    PermissionRequest,
     Page
 } from '../lib/types'
 import { useAttendanceRegister } from '../lib/useAttendanceRegister'
@@ -20,7 +21,8 @@ export function EmployeePage({
     onTodayChange,
     onNavigate,
     vacationRequests,
-    onRequestsChange
+    onRequestsChange,
+    permissionRequests
 }: {
     token: string
     records: AttendanceRecord[]
@@ -30,6 +32,7 @@ export function EmployeePage({
     onNavigate: (page: Page) => void
     vacationRequests: VacationRequest[]
     onRequestsChange: () => Promise<void>
+    permissionRequests: PermissionRequest[]
 }) {
     const station = new URLSearchParams(
         window.location.search
@@ -68,14 +71,16 @@ export function EmployeePage({
                 />
 
                 <VacationSummaryCard
+                    token={token}
                     requests={vacationRequests}
+                    onOpen={() => onNavigate('vacations')}
                 />
 
                 <PendingRequestsCard
-                    requests={vacationRequests}
-                    onViewRequests={() =>
-                        onNavigate('vacations')
-                    }
+                    vacations={vacationRequests}
+                    permissions={permissionRequests}
+                    onOpenVacations={() => onNavigate('vacations')}
+                    onOpenPermissions={() => onNavigate('attendance')}
                 />
 
             </section>

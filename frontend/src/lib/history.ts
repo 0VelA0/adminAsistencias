@@ -129,7 +129,7 @@ export function buildRows(
     records: AttendanceRecord[],
     vacations: VacationRequest[],
     permissions: PermissionRequest[],
-    days: ClassifiedDay[]
+    days: ClassifiedDay[],
 ): HistoryRow[] {
     const rows: HistoryRow[] = []
 
@@ -167,8 +167,8 @@ export function buildRows(
             title: 'Asistencia diaria',
             detail,
             amount: day.hours === '—' ? '—' : `${day.hours} h`,
-            label: late ? 'Retardo' : done ? 'Completado' : 'En curso',
-            badge: late ? 'late' : done ? 'approved' : 'pending',
+            label: late ? 'Retardo' : day.exit?.status === 'early' ? 'Salida anticipada' : done ? 'Completado' : 'En curso',
+            badge: late || day.exit?.status === 'early' ? 'late' : done ? 'approved' : 'pending',
             lines,
         })
     }

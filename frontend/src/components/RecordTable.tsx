@@ -83,16 +83,8 @@ export function RecordTable({
                                 </td>
 
                                 <td data-label="Estado">
-                                    <span
-                                        className={`badge ${
-                                            record.status === 'late'
-                                                ? 'late'
-                                                : 'normal'
-                                        }`}
-                                    >
-                                        {record.status === 'late'
-                                            ? 'Retardo'
-                                            : 'Normal'}
+                                    <span className={`badge ${record.status === 'normal' ? 'normal' : 'late'}`}>
+                                        {record.status === 'late' ? 'Retardo' : record.status === 'early' ? 'Salida anticipada' : 'Normal'}
                                     </span>
                                 </td>
 

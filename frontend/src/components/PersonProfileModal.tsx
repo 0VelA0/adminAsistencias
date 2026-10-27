@@ -188,7 +188,13 @@ function ProfileForm({
 
                 <div className="segmented">
                     {(Object.keys(MODE_LABEL) as WorkMode[]).map(m => (
-                        <button key={m} type="button" className={mode === m ? 'active' : ''} onClick={() => setMode(m)}>
+                        <button 
+                            key={m} 
+                            type="button" 
+                            className={mode === m ? 'active' : ''} 
+                            onClick={() => {setMode(m)
+                                if (m === 'onsite' && kind === 'flexible') setKind('general')}}
+                        >
                             <Icon name={m === 'onsite' ? 'building' : m === 'remote' ? 'home' : 'switch'} size={14} /> {MODE_LABEL[m]}
                         </button>
                     ))}
@@ -197,7 +203,7 @@ function ProfileForm({
                 <p className="muted form-hint">
                     {mode === 'onsite' && 'Registra siempre desde la oficina, con validación de ubicación.'}
                     {mode === 'remote' && 'Registra desde donde esté. No se pide ubicación.'}
-                    {mode === 'hybrid' && 'En sus días de oficina se valida la ubicación; el resto registra como remoto.'}
+                    {mode === 'hybrid' && ' En sus días de oficina aplica el horario general de la empresa, sin pausas.'}
                 </p>
 
                 {mode === 'hybrid' && (
@@ -227,7 +233,15 @@ function ProfileForm({
                 <div className="segmented">
                     <button type="button" className={kind === 'general' ? 'active' : ''} onClick={() => setKind('general')}>Horario general</button>
                     <button type="button" className={kind === 'fixed' ? 'active' : ''} onClick={() => setKind('fixed')}>Horario propio</button>
-                    <button type="button" className={kind === 'flexible' ? 'active' : ''} onClick={() => setKind('flexible')}>Flexible por horas</button>
+                    <button
+                        type="button"
+                        disabled={mode === 'onsite'}
+                        title={mode === 'onsite' ? 'La modalidad presencial requiere horario fijo' : undefined}
+                        className={kind === 'flexible' ? 'active' : ''}
+                        onClick={() => setKind('flexible')}
+                    >
+                        Flexible por horas
+                    </button>
                 </div>
 
                 {kind === 'fixed' && (

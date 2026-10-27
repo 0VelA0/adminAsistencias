@@ -6,14 +6,17 @@ import { Logo } from '../components/Login/Logo'
 
 export function LoginPage({
     onLogin,
+    notice,
 }: {
-    onLogin: (token: string, user: User) => void
+    onLogin: (token: string, user: User, remember: boolean) => void
+    notice?: string
 }) {
     const { branding } = useBranding()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [remember, setRemember] = useState(false)
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault()
@@ -30,7 +33,7 @@ export function LoginPage({
                 ''
             )
 
-            onLogin(data.access_token, data.user)
+            onLogin(data.access_token, data.user, remember)
         } catch (e) {
             setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.')
         } finally {
@@ -46,6 +49,8 @@ export function LoginPage({
                     <h1>{branding.company_name}</h1>
                     <p className="muted">Control de asistencia</p>
                 </div>
+
+                {notice && <p className="notice login-notice">{notice}</p>}
 
                 <label>
                     Correo electrónico
@@ -67,6 +72,18 @@ export function LoginPage({
                         onChange={e => setPassword(e.target.value)}
                         required
                     />
+                </label>
+
+                <label className="remember-row">
+                    <span className="switch">
+                        <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+                        <span />
+                    </span>
+
+                    <span className="remember-text">
+                        <strong>Mantener la sesión iniciada</strong>
+                        <small>No lo actives en equipos compartidos.</small>
+                    </span>
                 </label>
 
                 {error && <p className="error">{error}</p>}
