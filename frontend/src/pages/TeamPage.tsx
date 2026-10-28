@@ -10,6 +10,7 @@ import { PersonDrawer } from '../components/PersonDrawer'
 import { PersonProfileModal } from '../components/PersonProfileModal'
 import { StateView } from '../components/StatusBlocks'
 import { PageHeader } from '../components/PageHeader'
+import { ActionMenu } from '../components/ActionMenu'
 
 function Directory({ people, onSelect }: { people: Person[]; onSelect: (p: Person) => void }) {
     const [query, setQuery] = useState('')
@@ -76,6 +77,7 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
     const [selectedId, setSelectedId] = useState<number | null>(null)
     const [focus, setFocus] = useState<{ id: number; key: number } | null>(null)
     const [editing, setEditing] = useState<number | null>(null)
+    const unassigned = (people.data ?? []).filter(p => !p.manager_id && !p.is_top_level)
     
 
     const selected = people.data?.find(p => p.id === selectedId) ?? null
@@ -87,15 +89,35 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
                 title="Nuestro equipo"
                 description="Conoce quién es quién y cómo está organizada la empresa."
                 actions={
-                    <div className="filter-tabs" role="tablist">
-                        <button type="button" role="tab" aria-selected={tab === 'org'} className={tab === 'org' ? 'active' : ''} onClick={() => setTab('org')}>
-                            <Icon name="org" size={14} /> Organigrama
-                        </button>
-                        <button type="button" role="tab" aria-selected={tab === 'directory'} className={tab === 'directory' ? 'active' : ''} onClick={() => setTab('directory')}>
-                            <Icon name="users" size={14} /> Directorio
-                        </button>
-                    </div>
+                    <>
+                        {isAdmin && unassigned.length > 0 && (
+                            <ActionMenu
+                                label="Personas sin jefe directo asignado"
+                                triggerClassName="unassigned-pill"
+                                items={unassigned.map(p => ({
+                                    label: p.full_name,
+                                    hint: p.position ? `${p.position} · asignar jefe` : 'Asignar jefe directo',
+                                    icon: 'user' as const,
+                                    onSelect: () => setEditing(p.id),
+                                }))}
+                            >
+                                <span className="unassigned-dot" />
+                                {unassigned.length} sin jefe asignado
+                            </ActionMenu>
+                        )}
+
+                        <div className="filter-tabs" role="tablist">
+                            <button type="button" role="tab" aria-selected={tab === 'org'} className={tab === 'org' ? 'active' : ''} onClick={() => setTab('org')}>
+                                <Icon name="org" size={14} /> Organigrama
+                            </button>
+                            <button type="button" role="tab" aria-selected={tab === 'directory'} className={tab === 'directory' ? 'active' : ''} onClick={() => setTab('directory')}>
+                                <Icon name="users" size={14} /> Directorio
+                            </button>
+                        </div>
+                    
+                    </>
                 }
+                    
             />  
 
             <section className="dashboard-card">

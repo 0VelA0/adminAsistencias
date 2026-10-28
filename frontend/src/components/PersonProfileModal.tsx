@@ -94,6 +94,7 @@ function ProfileForm({
     const managers = people.filter(p => p.is_active && !blocked.has(p.id))
     const positions = uniqueSorted(people.map(p => p.position))
     const departments = uniqueSorted(people.map(p => p.department))
+    const [tracks, setTracks] = useState(person.tracks_attendance)
 
     const toggleDay = (day: number) =>
         setDays(current => (current.includes(day) ? current.filter(d => d !== day) : [...current, day].sort()))
@@ -123,6 +124,7 @@ function ProfileForm({
                         office_days: mode === 'hybrid' ? officeDays.filter(d => effectiveDays.includes(d)) : null,
                         manager_id: managerId && managerId !== 'top' ? Number(managerId) : null,
                         is_top_level: managerId === 'top',
+                        tracks_attendance: tracks,
                     }),
                 },
                 token
@@ -185,6 +187,18 @@ function ProfileForm({
 
             <section className="form-section">
                 <h3>Modalidad de trabajo</h3>
+
+                <div className="switch-row">
+                    <div className="switch-text">
+                        <span>Registra asistencia</span>
+                        <small>Desactívalo para cuentas de sistema o directivos que no checan.</small>
+                    </div>
+
+                    <label className="switch">
+                        <input type="checkbox" checked={tracks} onChange={e => setTracks(e.target.checked)} />
+                        <span />
+                    </label>
+                </div>
 
                 <div className="segmented">
                     {(Object.keys(MODE_LABEL) as WorkMode[]).map(m => (

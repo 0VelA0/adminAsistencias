@@ -396,6 +396,7 @@ class EmployeeProfile(Base):
     position: Mapped[str | None] = mapped_column(String(100), nullable=True)
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
     manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    tracks_attendance: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Horario propio (todo en None = usa el horario general)
     work_start_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)

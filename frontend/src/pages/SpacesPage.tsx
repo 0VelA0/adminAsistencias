@@ -5,6 +5,7 @@ import { BookingBoard } from '../components/BookingBoard'
 import { MyBookings } from '../components/MyBookings'
 import { StateView } from '../components/StatusBlocks'
 import { PageHeader } from '../components/PageHeader'
+import { RoomsIllustration } from '../components/RoomsIllustration'
 
 export function SpacesPage({ token, user }: { token: string; user: User }) {
     const spaces = useAsync(() => api<Space[]>('/spaces', {}, token), [token])
@@ -17,9 +18,11 @@ export function SpacesPage({ token, user }: { token: string; user: User }) {
             <StateView state={spaces}>
                 {list =>
                     list.length === 0 ? (
-                        <p className="pending-request-empty">
-                            Aún no hay espacios configurados. Pide a un administrador que los agregue.
-                        </p>
+                        <div className="empty-state">
+                            <RoomsIllustration />
+                            <strong>Aún no hay espacios para reservar</strong>
+                            <p className="muted">Cuando un administrador agregue salas o espacios, aparecerán aquí.</p>
+                        </div>
                     ) : (
                         <BookingBoard token={token} user={user} spaces={list} onChanged={mine.reload} />
                     )

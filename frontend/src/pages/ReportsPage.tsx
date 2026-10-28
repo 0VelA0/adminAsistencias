@@ -62,7 +62,7 @@ export function ReportsPage({ token }: { token: string }) {
     const departments = useMemo(() => uniqueSorted((people.data ?? []).map(p => p.department)), [people.data])
 
     const employees = (people.data ?? []).filter(
-        p => p.role === 'employee' && (!department || p.department === department)
+        p => p.tracks_attendance && (!department || p.department === department)
     )
 
     const body = JSON.stringify({

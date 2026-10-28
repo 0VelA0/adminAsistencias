@@ -148,6 +148,7 @@ PROFILE_COLUMNS = {
     "schedule_type": "VARCHAR(10) DEFAULT 'fixed'",
     "weekly_minutes": "INTEGER",
     "office_days": "VARCHAR(20)",
+    "tracks_attendance": "BOOLEAN DEFAULT TRUE",
 }
 
 ATTENDANCE_COLUMNS = {
@@ -322,6 +323,22 @@ def schedule_from_profile(profile: "EmployeeProfile | None") -> Schedule:
 def get_profile(db: Session, user_id: int) -> "EmployeeProfile | None":
     return db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == user_id))
 
+def attendance_users(db: Session) -> list[User]:
+    """Personas activas que registran asistencia, sin importar su rol."""
+
+    exempt = {
+        p.user_id
+        for p in db.scalars(select(EmployeeProfile)).all()
+        if p.tracks_attendance is False
+    }
+
+    return [
+        u
+        for u in db.scalars(
+            select(User).where(User.is_active.is_(True)).order_by(User.full_name)
+        ).all()
+        if u.id not in exempt
+    ]
 
 def get_schedule(db: Session, user_id: int) -> Schedule:
     return schedule_from_profile(get_profile(db, user_id))
@@ -763,15 +780,15 @@ def build_report_days(db: Session, data: ReportRequest):
 
     profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
 
-    query = select(User).where(User.role == "employee").order_by(User.full_name)
+    query = select(User).order_by(User.full_name)
     if data.user_id:
         query = query.where(User.id == data.user_id)
 
     users = [
         u
         for u in db.scalars(query).all()
-        if not data.department
-        or (profiles.get(u.id) and profiles[u.id].department == data.department)
+        if not (profiles.get(u.id) and profiles[u.id].tracks_attendance is False)
+        and (not data.department or (profiles.get(u.id) and profiles[u.id].department == data.department))
     ]
 
     if not users:
@@ -1278,11 +1295,12 @@ def manual_attendance(
             detail="Empleado no encontrado.",
         )
 
-    if employee.role == "admin":
+    profile = get_profile(db, employee.id)
 
+    if profile and profile.tracks_attendance is False:
         raise HTTPException(
             status_code=400,
-            detail="No se puede registrar asistencia manual para un administrador.",
+            detail="Esta persona no registra asistencia. Actívalo en su perfil laboral.",
         )
 
     today = get_work_date()
@@ -1464,11 +1482,7 @@ def today_overview(
 
     holiday = db.scalar(select(Holiday).where(Holiday.holiday_date == today))
 
-    employees = db.scalars(
-        select(User)
-        .where(User.role == "employee", User.is_active.is_(True))
-        .order_by(User.full_name)
-    ).all()
+    employees = attendance_users(db)
 
     profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
 
@@ -3033,7 +3047,9 @@ def sync_weekly_summary(
 ) -> None:
     """Crea el resumen de la semana anterior (lunes a domingo), una sola vez."""
 
-    if not prefs.notify_weekly or user.role != "employee":
+    profile = get_profile(db, user.id)
+
+    if not prefs.notify_weekly or (profile and profile.tracks_attendance is False):
         return
 
     today = get_work_date()
@@ -3936,6 +3952,7 @@ def build_person(user: User, profile: "EmployeeProfile | None", phone: str | Non
         phone=phone,
         is_top_level=bool(profile.is_top_level) if profile else False,
         schedule=schedule_out(schedule_from_profile(profile)),
+        tracks_attendance=profile.tracks_attendance is not False if profile else True,
     )
 
 
@@ -4060,6 +4077,7 @@ def update_person_profile(
         profile.weekly_minutes = None
 
     profile.is_top_level = data.is_top_level
+    profile.tracks_attendance = data.tracks_attendance
 
     db.commit()
     db.refresh(target)

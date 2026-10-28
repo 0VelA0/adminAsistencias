@@ -239,6 +239,7 @@ export type Person = {
     phone: string | null
     schedule: Schedule
     is_top_level: boolean
+    tracks_attendance: boolean
 }
 
 export type ImportRow = {

@@ -519,6 +519,7 @@ class PersonOut(BaseModel):
     phone: str | None = None
     is_top_level: bool = False
     schedule: ScheduleOut
+    tracks_attendance: bool = True
 
 
 class ProfileUpdateIn(BaseModel):
@@ -538,6 +539,7 @@ class ProfileUpdateIn(BaseModel):
     schedule_type: str = "fixed"
     weekly_hours: float | None = Field(default=None, gt=0, le=80)
     office_days: list[int] | None = None
+    tracks_attendance: bool = True
 
     @model_validator(mode="after")
     def valid_schedule(self):

@@ -47,7 +47,7 @@ export function ManualRecordModal({
     const [note, setNote] = useState(editing?.note ?? '')
     const [busy, setBusy] = useState(false)
 
-    const people = (employees.data ?? []).filter(u => u.role === 'employee' && u.is_active)
+    const people = (employees.data ?? []).filter(u => u.is_active)
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault()

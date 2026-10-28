@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
-import { formatDay, fromMin, timeOptions, toMin } from '../lib/format'
+import { formatDay, formatMinutes, fromMin, timeOptions, toMin } from '../lib/format'
+import { deptColors } from '../lib/people'
 import type { Booking, Space } from '../lib/types'
+import { Icon } from './Icon'
+import { SpaceTimeline } from './SpaceTimeLine'
 import { useToast } from './Toast'
 
 export function BookingModal({
@@ -21,16 +24,19 @@ export function BookingModal({
 }) {
     const toast = useToast()
 
+    const taken = bookings.filter(b => b.space_id === space.id)
     const lastStart = fromMin(toMin(space.close_time) - 15)
+
     const [start, setStart] = useState(space.open_time)
     const [end, setEnd] = useState(fromMin(Math.min(toMin(space.open_time) + 60, toMin(space.close_time))))
     const [title, setTitle] = useState('')
     const [notes, setNotes] = useState('')
+    const [showNotes, setShowNotes] = useState(false)
     const [saving, setSaving] = useState(false)
 
-    const taken = bookings.filter(b => b.space_id === space.id)
-
-    const overlap = taken.find(b => toMin(b.start_time) < toMin(end) && toMin(b.end_time) > toMin(start))
+    const startMin = toMin(start)
+    const endMin = toMin(end)
+    const overlap = taken.find(b => toMin(b.start_time) < endMin && toMin(b.end_time) > startMin)
 
     const changeStart = (value: string) => {
         setStart(value)
@@ -61,7 +67,7 @@ export function BookingModal({
                 token
             )
 
-            toast.success('Reserva confirmada.')
+            toast.success(`Reservaste ${space.name} de ${start} a ${end}.`)
             onSaved()
             onClose()
         } catch (error) {
@@ -73,22 +79,29 @@ export function BookingModal({
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
-            <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-                <p className="eyebrow">{space.kind.toUpperCase()}</p>
-                <h2>Reservar {space.name}</h2>
+            <form className="modal booking-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
+                <header className="booking-head">
+                    <span className="space-avatar" style={deptColors(space.kind)}>
+                        <Icon name="building" size={22} />
+                    </span>
 
-                <p className="muted">
-                    {formatDay(day)} · Disponible de {space.open_time} a {space.close_time}
-                </p>
-
-                {taken.length > 0 && (
-                    <div className="notice">
-                        Ocupado ese día:{' '}
-                        {taken.map(b => `${b.start_time}–${b.end_time} (${b.user_name})`).join(', ')}
+                    <div>
+                        <p className="eyebrow">{space.kind.toUpperCase()}</p>
+                        <h2>{space.name}</h2>
+                        <p className="muted cap">
+                            {formatDay(day)} · {space.capacity} personas
+                        </p>
                     </div>
-                )}
+                </header>
 
-                <div className="modal-row">
+                <SpaceTimeline
+                    openTime={space.open_time}
+                    closeTime={space.close_time}
+                    bookings={taken}
+                    selection={{ start: startMin, end: endMin, clash: Boolean(overlap) }}
+                />
+
+                <div className="booking-times">
                     <label>
                         Inicio
                         <select value={start} onChange={e => changeStart(e.target.value)}>
@@ -98,38 +111,57 @@ export function BookingModal({
                         </select>
                     </label>
 
+                    <span className="booking-duration">{formatMinutes(Math.max(0, endMin - startMin))}</span>
+
                     <label>
                         Fin
                         <select value={end} onChange={e => setEnd(e.target.value)}>
-                            {timeOptions(fromMin(toMin(start) + 15), space.close_time).map(h => (
+                            {timeOptions(fromMin(startMin + 15), space.close_time).map(h => (
                                 <option key={h} value={h}>{h}</option>
                             ))}
                         </select>
                     </label>
                 </div>
 
-                {overlap && (
-                    <p className="error">
-                        Se empalma con una reserva de {overlap.start_time} a {overlap.end_time}.
+                {overlap ? (
+                    <p className="booking-alert">
+                        <Icon name="alert" size={14} /> Se empalma con "{overlap.title}" ({overlap.start_time}–{overlap.end_time}).
+                    </p>
+                ) : (
+                    <p className="availability">
+                        <Icon name="check" size={14} /> Horario disponible
                     </p>
                 )}
 
                 <label>
-                    Título de la reunión
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Revisión semanal" minLength={2} maxLength={150} required />
+                    ¿Para qué es?
+                    <input
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                        placeholder="Ej. Revisión semanal del equipo"
+                        minLength={2}
+                        maxLength={150}
+                        required
+                    />
                 </label>
 
-                <label>
-                    Notas (opcional)
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} maxLength={500} />
-                </label>
+                {showNotes ? (
+                    <label className="step-panel">
+                        Notas
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} maxLength={500} />
+                    </label>
+                ) : (
+                    <button type="button" className="link add-notes" onClick={() => setShowNotes(true)}>
+                        <Icon name="plus" size={13} /> Agregar notas
+                    </button>
+                )}
 
                 <div className="modal-actions">
                     <button type="button" className="secondary" onClick={onClose}>
                         Cancelar
                     </button>
-                    <button type="submit" disabled={saving || Boolean(overlap)}>
-                        {saving ? 'Reservando…' : 'Confirmar reserva'}
+                    <button type="submit" disabled={saving || Boolean(overlap) || endMin <= startMin}>
+                        {saving ? 'Reservando…' : `Reservar ${start}–${end}`}
                     </button>
                 </div>
             </form>

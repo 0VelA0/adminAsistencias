@@ -9,6 +9,7 @@ import { SpaceModal } from '../components/SpaceModal'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
 import { PageHeader } from '../components/PageHeader'
+import { RoomsIllustration } from '../components/RoomsIllustration'
 
 export function SpacesAdminPage({ token, user }: { token: string; user: User }) {
     const toast = useToast()
@@ -52,10 +53,11 @@ export function SpacesAdminPage({ token, user }: { token: string; user: User }) 
                             </div>
 
                             {list.length === 0 ? (
-                                <p className="empty">
-                                    Todavía no hay espacios. Crea el primero: una sala de juntas, un auditorio,
-                                    un cubículo… lo que tenga tu empresa.
-                                </p>
+                                <div className="empty-state">
+                                    <RoomsIllustration />
+                                    <strong>Todavía no hay espacios.</strong>
+                                    <p className="muted">Crea el primero: una sala de juntas, un auditorio, un cubículo… lo que tenga tu empresa.</p>
+                                </div>
                             ) : (
                                 <div className="table-card">
                                     <div className="table-scroll">
