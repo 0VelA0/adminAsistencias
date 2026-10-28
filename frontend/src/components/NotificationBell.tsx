@@ -233,9 +233,6 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
                         </div>
                     )}
 
-                    {data.items.length > 0 && (
-                        <p className="notif-tip">Desliza a la izquierda o usa × para borrar una notificación.</p>
-                    )}
                 </div>
             )}
         </div>
