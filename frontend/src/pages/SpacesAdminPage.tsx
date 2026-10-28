@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon'
 import { SpaceModal } from '../components/SpaceModal'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
+import { PageHeader } from '../components/PageHeader'
 
 export function SpacesAdminPage({ token, user }: { token: string; user: User }) {
     const toast = useToast()
@@ -30,17 +31,16 @@ export function SpacesAdminPage({ token, user }: { token: string; user: User }) 
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">ESPACIOS</p>
-                    <h2>Espacios y reservas</h2>
-                    <p className="muted">Configura las salas de tu empresa y revisa sus reservas.</p>
-                </div>
-
-                <button type="button" onClick={() => setCreating(true)}>
-                    <Icon name="plus" size={16} /> Nuevo espacio
-                </button>
-            </div>
+            <PageHeader
+                eyebrow="ESPACIOS"
+                title="Espacios y reservas"
+                description="Configura las salas de tu empresa y revisa sus reservas."
+                actions={
+                    <button type="button" onClick={() => setCreating(true)}>
+                        <Icon name="plus" size={16} /> Nuevo espacio
+                    </button>
+                }
+            />
 
             <StateView state={spaces}>
                 {list => (

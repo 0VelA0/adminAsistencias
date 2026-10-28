@@ -13,6 +13,7 @@ import { AttendanceHistory } from '../components/AttendanceHistory'
 import { PermissionsCard } from '../components/PermissionsCard'
 import { PermissionModal } from '../components/PermissionModal'
 import { OfficeDaysCard } from '../components/OfficeDaysCard'
+import { PageHeader } from '../components/PageHeader'
 
 export function AttendancePage({
     token,
@@ -56,13 +57,7 @@ export function AttendancePage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">ASISTENCIA</p>
-                    <h2>Panel de Asistencia</h2>
-                    <p className="muted">Consulta y registra tu jornada</p>
-                </div>
-            </div>
+            <PageHeader eyebrow="ASISTENCIA" title="Panel de Asistencia" description="Consulta y registra tu jornada." />
 
             {message && <p className="notice">{message}</p>}
 

@@ -15,6 +15,7 @@ import { AttendanceSummaryCard } from '../components/AttendanceSummaryCard'
 import { RequestsTotalCard } from '../components/RequestsTotalCard'
 import { PunctualityTrendCard } from '../components/PunctualityTrendCard'
 import { HistoryTable } from '../components/HistoryTable'
+import { PageHeader } from '../components/PageHeader'
 
 export function HistoryPage({
     records,
@@ -53,15 +54,7 @@ export function HistoryPage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">HISTORIAL</p>
-                    <h2>Panel de Historial Completo</h2>
-                    <p className="muted">
-                        Consulta todo tu historial de asistencia y solicitudes.
-                    </p>
-                </div>
-            </div>
+            <PageHeader eyebrow="HISTORIAL" title="Historial completo" description="Toda tu asistencia y tus solicitudes en un solo lugar." />
 
             <section className="dashboard-grid">
                 <AttendanceSummaryCard

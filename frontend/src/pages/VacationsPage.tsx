@@ -6,6 +6,7 @@ import { VacationUsageCard } from '../components/VacationUsageCard'
 import { VacationRequestsCard } from '../components/VacationRequestCard'
 import { VacationHistory } from '../components/VacationHistory'
 import { VacationModal } from '../components/VacationModal'
+import { PageHeader } from '../components/PageHeader'
 
 export function VacationsPage({
     token,
@@ -31,15 +32,7 @@ export function VacationsPage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">VACACIONES</p>
-                    <h2>Panel de Vacaciones</h2>
-                    <p className="muted">
-                        Consulta tu saldo, solicita periodos y revisa el estado de tus solicitudes.
-                    </p>
-                </div>
-            </div>
+            <PageHeader eyebrow="VACACIONES" title="Panel de Vacaciones" description="Consulta tu saldo, solicita periodos y revisa el estado de tus solicitudes." />
 
             <section className="dashboard-grid">
                 <VacationBalanceCard

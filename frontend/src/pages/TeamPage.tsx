@@ -9,6 +9,7 @@ import { OrgChart } from '../components/OrgChart'
 import { PersonDrawer } from '../components/PersonDrawer'
 import { PersonProfileModal } from '../components/PersonProfileModal'
 import { StateView } from '../components/StatusBlocks'
+import { PageHeader } from '../components/PageHeader'
 
 function Directory({ people, onSelect }: { people: Person[]; onSelect: (p: Person) => void }) {
     const [query, setQuery] = useState('')
@@ -81,22 +82,21 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">EQUIPO</p>
-                    <h2>Nuestro equipo</h2>
-                    <p className="muted">Conoce las personas que hacen posible el funcionamiento de la empresa.</p>
-                </div>
-
-                <div className="filter-tabs" role="tablist">
-                    <button type="button" role="tab" aria-selected={tab === 'org'} className={tab === 'org' ? 'active' : ''} onClick={() => setTab('org')}>
-                        <Icon name="org" size={14} /> Organigrama
-                    </button>
-                    <button type="button" role="tab" aria-selected={tab === 'directory'} className={tab === 'directory' ? 'active' : ''} onClick={() => setTab('directory')}>
-                        <Icon name="users" size={14} /> Directorio
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="EQUIPO"
+                title="Nuestro equipo"
+                description="Conoce quién es quién y cómo está organizada la empresa."
+                actions={
+                    <div className="filter-tabs" role="tablist">
+                        <button type="button" role="tab" aria-selected={tab === 'org'} className={tab === 'org' ? 'active' : ''} onClick={() => setTab('org')}>
+                            <Icon name="org" size={14} /> Organigrama
+                        </button>
+                        <button type="button" role="tab" aria-selected={tab === 'directory'} className={tab === 'directory' ? 'active' : ''} onClick={() => setTab('directory')}>
+                            <Icon name="users" size={14} /> Directorio
+                        </button>
+                    </div>
+                }
+            />  
 
             <section className="dashboard-card">
                 <StateView state={people}>

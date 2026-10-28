@@ -5,6 +5,7 @@ import { useAsync } from '../lib/useAsync'
 import type { Holiday } from '../lib/types'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
+import { PageHeader } from '../components/PageHeader'
 
 export function HolidaysPage({ token, onChanged }: { token: string; onChanged: () => void }) {
     const toast = useToast()
@@ -71,13 +72,7 @@ export function HolidaysPage({ token, onChanged }: { token: string; onChanged: (
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">CALENDARIO LABORAL</p>
-                    <h2>Días festivos</h2>
-                    <p className="muted">Los festivos no cuentan como falta en asistencia ni en reportes.</p>
-                </div>
-            </div>
+            <PageHeader eyebrow="CALENDARIO LABORAL" title="Días festivos" description="Los festivos no cuentan como falta en asistencia ni en reportes." />
 
             <section className="dashboard-card history-card">
                 <div className="section-title history-title">

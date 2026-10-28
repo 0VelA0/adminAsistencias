@@ -4,6 +4,7 @@ import type { Booking, Space, User } from '../lib/types'
 import { BookingBoard } from '../components/BookingBoard'
 import { MyBookings } from '../components/MyBookings'
 import { StateView } from '../components/StatusBlocks'
+import { PageHeader } from '../components/PageHeader'
 
 export function SpacesPage({ token, user }: { token: string; user: User }) {
     const spaces = useAsync(() => api<Space[]>('/spaces', {}, token), [token])
@@ -11,13 +12,7 @@ export function SpacesPage({ token, user }: { token: string; user: User }) {
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">ESPACIOS</p>
-                    <h2>Salas y espacios</h2>
-                    <p className="muted">Consulta la disponibilidad y reserva tu horario.</p>
-                </div>
-            </div>
+            <PageHeader eyebrow="ESPACIOS" title="Salas y espacios" description="Consulta la disponibilidad y reserva tu horario." />
 
             <StateView state={spaces}>
                 {list =>

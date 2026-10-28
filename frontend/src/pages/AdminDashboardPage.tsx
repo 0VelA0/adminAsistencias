@@ -8,10 +8,11 @@ import { StateView } from '../components/StatusBlocks'
 import { StationQrPanel } from '../components/StationQrPanel'
 import { TodayOverview } from '../components/TodayOverview'
 import { Icon } from '../components/Icon'
-import { ymd } from '../lib/format'
+import { ymd, parseServerDate, toDate } from '../lib/format'
 import { ManualRecordModal } from '../components/ManualRecordModal'
 import type { ManualMode } from '../components/ManualRecordModal'
 import { SearchField } from '../components/SearchField';
+import { PageHeader } from '../components/PageHeader'
 
 type Section = 'home' | 'requests' | 'attendance'
 
@@ -34,6 +35,14 @@ const TITLES: Record<Section, { eyebrow: string; title: string; text: string }> 
 }
 
 const PAGE = 40
+
+const hhmm = (value: string) =>
+    parseServerDate(value).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+
+function daysAgo(date: string) {
+    const diff = Math.round((toDate(ymd(new Date())).getTime() - toDate(date).getTime()) / 86_400_000)
+    return diff === 1 ? 'Ayer' : `Hace ${diff} días`
+}
 
 function AdminHome({
     token,
@@ -129,57 +138,96 @@ function AdminAttendance({ token, refresh }: { token: string; refresh: number })
     // Días pasados con entrada pero sin salida
     const pendingExits = useMemo(() => {
         const today = ymd(new Date())
-        const days = new Map<string, { user_id: number; user_name: string; date: string; entry: boolean; exit: boolean }>()
+        const days = new Map<
+            string,
+            { user_id: number; user_name: string; date: string; entry_at: string | null; exit: boolean }
+        >()
 
         for (const r of records.data ?? []) {
             const date = r.work_date.slice(0, 10)
             const key = `${r.user_id}-${date}`
-            const item = days.get(key) ?? { user_id: r.user_id, user_name: r.user_name, date, entry: false, exit: false }
+            const item = days.get(key) ?? { user_id: r.user_id, user_name: r.user_name, date, entry_at: null, exit: false }
 
-            if (r.kind === 'entry') item.entry = true
+            if (r.kind === 'entry') item.entry_at = r.recorded_at
             else item.exit = true
 
             days.set(key, item)
         }
 
         return [...days.values()]
-            .filter(d => d.entry && !d.exit && d.date < today)
+            .filter(d => d.entry_at && !d.exit && d.date < today)
             .sort((a, b) => b.date.localeCompare(a.date))
-            .slice(0, 8)
     }, [records.data])
+
+    const [showAllExits, setShowAllExits] = useState(false)
+    const shownExits = showAllExits ? pendingExits : pendingExits.slice(0, 6)
 
     return (
         <>
             {pendingExits.length > 0 && (
-                <section className="dashboard-card">
-                    <div className="dashboard-card-title">
+                <section className="dashboard-card pending-exits">
+                    <header className="pending-exits-head">
+                        <span className="pending-exits-icon">
+                            <Icon name="alert" size={20} />
+                        </span>
+
                         <div>
-                            <p className="eyebrow">POR CORREGIR</p>
                             <h2>Salidas pendientes de registrar</h2>
+                            <p className="muted">
+                                Entradas de días anteriores sin salida. Regístralas para que las horas y el reporte de
+                                nómina cuadren.
+                            </p>
                         </div>
-                        <span className="dashboard-card-icon">{pendingExits.length}</span>
-                    </div>
 
-                    <div className="today-list">
-                        {pendingExits.map(item => (
-                            <div className="person-item" key={`${item.user_id}-${item.date}`}>
-                                <div className="person-text">
-                                    <strong>{item.user_name}</strong>
-                                    <span>Entrada del {item.date}, sin salida</span>
-                                </div>
+                        <span className="pending-exits-count" aria-label={`${pendingExits.length} pendientes`}>
+                            {pendingExits.length}
+                        </span>
+                    </header>
 
-                                <button
-                                    type="button"
-                                    className="compact"
-                                    onClick={() =>
-                                        setManual({ type: 'create', userId: item.user_id, date: item.date, kind: 'exit' })
-                                    }
+                    <div className="pending-exits-grid">
+                        {shownExits.map((item, i) => {
+                            const date = toDate(item.date)
+
+                            return (
+                                <article
+                                    key={`${item.user_id}-${item.date}`}
+                                    className="exit-card"
+                                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                                 >
-                                    Registrar salida
-                                </button>
-                            </div>
-                        ))}
+                                    <div className="exit-date">
+                                        <strong>{date.getDate()}</strong>
+                                        <span>{date.toLocaleDateString('es-MX', { month: 'short' })}</span>
+                                    </div>
+
+                                    <div className="exit-info">
+                                        <strong>{item.user_name}</strong>
+                                        <span className="cap">
+                                            {date.toLocaleDateString('es-MX', { weekday: 'long' })} · {daysAgo(item.date)}
+                                        </span>
+                                        <span className="exit-entry">
+                                            <Icon name="login" size={12} /> Entrada {hhmm(item.entry_at!)} · <em>sin salida</em>
+                                        </span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="secondary compact"
+                                        onClick={() =>
+                                            setManual({ type: 'create', userId: item.user_id, date: item.date, kind: 'exit' })
+                                        }
+                                    >
+                                        <Icon name="logout" size={14} /> Registrar salida
+                                    </button>
+                                </article>
+                            )
+                        })}
                     </div>
+
+                    {pendingExits.length > 6 && (
+                        <button type="button" className="link pending-exits-more" onClick={() => setShowAllExits(v => !v)}>
+                            {showAllExits ? 'Ver menos' : `Ver las ${pendingExits.length} pendientes`}
+                        </button>
+                    )}
                 </section>
             )}
 
@@ -248,21 +296,16 @@ export function AdminDashboardPage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">{titles.eyebrow}</p>
-                    <h2>{titles.title}</h2>
-                    <p className="muted">{titles.text}</p>
-                </div>
-
-                <button
-                    type="button"
-                    className="secondary compact"
-                    onClick={() => setRefresh(n => n + 1)}
-                >
-                    Actualizar
-                </button>
-            </div>
+            <PageHeader
+                eyebrow={titles.eyebrow}
+                title={titles.title}
+                description={titles.text}
+                actions={
+                    <button type="button" className="secondary" onClick={() => setRefresh(n => n + 1)}>
+                        <Icon name="history" size={16} /> Actualizar
+                    </button>
+                }
+            />
 
             {section === 'home' && (
                 <AdminHome token={token} refresh={refresh} onNavigate={onNavigate} />

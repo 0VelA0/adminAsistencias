@@ -12,6 +12,7 @@ import type { IconName } from '../components/Icon'
 import { IncidenceCodesModal } from '../components/IncidenceCodesModal'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
+import { PageHeader } from '../components/PageHeader'
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -116,31 +117,30 @@ export function ReportsPage({ token }: { token: string }) {
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">REPORTES</p>
-                    <h2>Reporte de asistencia</h2>
-                    <p className="muted">Genera el Excel para nómina con las claves de incidencia de tu empresa.</p>
-                </div>
+            <PageHeader
+                eyebrow="REPORTES"
+                title="Reporte de asistencia"
+                description="Genera el Excel para nómina con las claves de incidencia de tu empresa."
+                actions={
+                    <>
+                        <button type="button" className="secondary" onClick={() => setCodesOpen(true)}>
+                            <Icon name="sliders" size={16} /> Claves de incidencia
+                        </button>
 
-                <div className="heading-actions">
-                    <button type="button" className="secondary" onClick={() => setCodesOpen(true)}>
-                        <Icon name="sliders" size={16} /> Claves de incidencia
-                    </button>
-
-                    <button
-                        type="button"
-                        className={`download-btn ${download}`}
-                        disabled={download === 'busy' || !validRange || !preview.data?.people.length}
-                        onClick={exportExcel}
-                    >
-                        {download === 'busy' && <span className="spinner" />}
-                        {download === 'done' && <Icon name="check" size={16} />}
-                        {download === 'idle' && <Icon name="download" size={16} />}
-                        {download === 'busy' ? 'Generando…' : download === 'done' ? 'Descargado' : 'Descargar Excel'}
-                    </button>
-                </div>
-            </div>
+                        <button
+                            type="button"
+                            className={`download-btn ${download}`}
+                            disabled={download === 'busy' || !validRange || !preview.data?.people.length}
+                            onClick={exportExcel}
+                        >
+                            {download === 'busy' && <span className="spinner" />}
+                            {download === 'done' && <Icon name="check" size={16} />}
+                            {download === 'idle' && <Icon name="download" size={16} />}
+                            {download === 'busy' ? 'Generando…' : download === 'done' ? 'Descargado' : 'Descargar Excel'}
+                        </button>
+                    </>
+                }
+            />
 
             <section className="dashboard-card report-filters">
                 <div className="period-chips" role="radiogroup" aria-label="Periodo">

@@ -14,6 +14,7 @@ import { DeleteUserModal } from '../components/DeleteUserModal'
 import { ImportPeopleModal } from '../components/ImportPeopleModal'
 import { PersonProfileModal } from '../components/PersonProfileModal'
 import { ActionMenu } from '../components/ActionMenu'
+import { PageHeader } from '../components/PageHeader'
 
 type Credentials = {
     title: string
@@ -108,22 +109,21 @@ export function UsersPage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">ADMINISTRACIÓN</p>
-                    <h2>Usuarios</h2>
-                    <p className="muted">Crea cuentas y gestiona el acceso del equipo.</p>
-                </div>
-
-                <div className="heading-actions">
-                    <button type="button" className="secondary" onClick={() => setImporting(true)}>
-                        <Icon name="upload" size={16} /> Importar desde Excel
-                    </button>
-                    <button type="button" onClick={() => setShowCreate(true)}>
-                        <Icon name="plus" size={16} /> Nuevo usuario
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="ADMINISTRACIÓN"
+                title="Usuarios"
+                description="Crea cuentas y gestiona el acceso del equipo."
+                actions={
+                    <>
+                        <button type="button" className="secondary" onClick={() => setImporting(true)}>
+                            <Icon name="upload" size={16} /> Importar desde Excel
+                        </button>
+                        <button type="button" onClick={() => setShowCreate(true)}>
+                            <Icon name="plus" size={16} /> Nuevo usuario
+                        </button>
+                    </>
+                }
+            />
 
             {error && <p className="error">{error}</p>}
 

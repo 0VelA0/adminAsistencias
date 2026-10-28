@@ -6,6 +6,7 @@ import type { CalendarEvent, Page, User } from '../lib/types'
 import { Icon } from '../components/Icon'
 import type { IconName } from '../components/Icon'
 import { StateView } from '../components/StatusBlocks'
+import { PageHeader } from '../components/PageHeader'
 
 const TYPES: Record<CalendarEvent['type'], { label: string; icon: IconName }> = {
     meeting: { label: 'Reunión', icon: 'megaphone' },
@@ -109,22 +110,22 @@ export function CalendarPage({
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">CALENDARIO</p>
-                    <h2>Mi calendario</h2>
-                    <p className="muted">Reuniones, reservas, festivos y tus ausencias en un solo lugar.</p>
-                </div>
 
-                <div className="filter-tabs">
-                    <button type="button" className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>
-                        Mes
-                    </button>
-                    <button type="button" className={view === 'agenda' ? 'active' : ''} onClick={() => setView('agenda')}>
-                        Agenda
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="CALENDARIO"
+                title="Mi calendario"
+                description="Reuniones, reservas, festivos y tus ausencias en un solo lugar."
+                actions={
+                    <div className="filter-tabs" role="tablist">
+                        <button type="button" className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>
+                            Mes
+                        </button>
+                        <button type="button" className={view === 'agenda' ? 'active' : ''} onClick={() => setView('agenda')}>
+                            Agenda
+                        </button>
+                    </div>
+                }
+            />
 
             <section className="dashboard-card">
                 <div className="calendar-toolbar">

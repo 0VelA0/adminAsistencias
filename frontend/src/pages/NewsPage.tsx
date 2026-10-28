@@ -9,6 +9,7 @@ import { PostModal } from '../components/PostModal'
 import { ResponsesModal } from '../components/ResponsesModal'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
+import { PageHeader } from '../components/PageHeader'
 
 const FILTERS = [
     { value: 'all', label: 'Todo' },
@@ -76,19 +77,18 @@ export function NewsPage({ token }: { token: string }) {
 
     return (
         <div className="page-content">
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">COMUNICADOS</p>
-                    <h2>Novedades de la empresa</h2>
-                    <p className="muted">Avisos, reuniones y noticias del equipo.</p>
-                </div>
-
-                {meta.data?.can_publish && (
-                    <button type="button" onClick={() => setEditing('new')}>
-                        <Icon name="plus" size={16} /> Nueva publicación
-                    </button>
-                )}
-            </div>
+            <PageHeader
+                eyebrow="COMUNICADOS"
+                title="Novedades de la empresa"
+                description="Avisos, reuniones y noticias del equipo."
+                actions={
+                    meta.data?.can_publish && (
+                        <button type="button" onClick={() => setEditing('new')}>
+                            <Icon name="plus" size={16} /> Nueva publicación
+                        </button>
+                    )
+                }
+            />
             
             <div className="filter-tabs">
                 {FILTERS.map(f => (
