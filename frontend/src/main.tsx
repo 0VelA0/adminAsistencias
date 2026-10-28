@@ -278,13 +278,15 @@ function App() {
 
             <AppSidebar
                 user={user}
+                token={token}
+                today={today}
                 activePage={activePage}
                 adminView={adminView}
+                collapsed={collapsed}
+                onToggleCollapsed={toggleCollapsed}
                 onPageChange={setActivePage}
                 onToggleAdmin={toggleAdmin}
                 onLogout={logout}
-                collapsed={collapsed}
-                onToggleCollapsed={toggleCollapsed}
             />
 
             <main className="app-main">

@@ -15,7 +15,19 @@ export type MenuItem = {
 
 const MENU_WIDTH = 240
 
-export function ActionMenu({ items, label }: { items: MenuItem[]; label: string }) {
+export function ActionMenu({
+    items,
+    label,
+    children,
+    triggerClassName,
+    align = 'right',
+}: {
+    items: MenuItem[]
+    label: string
+    children?: React.ReactNode
+    triggerClassName?: string
+    align?: 'left' | 'right'
+}) {
     const [open, setOpen] = useState(false)
     const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
@@ -36,7 +48,10 @@ export function ActionMenu({ items, label }: { items: MenuItem[]; label: string 
 
         setPos({
             top: up ? rect.top - height - 6 : rect.bottom + 6,
-            left: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+            left:
+                align === 'left'
+                    ? Math.max(8, Math.min(rect.left, window.innerWidth - MENU_WIDTH - 8))
+                    : Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
             up,
         })
 
@@ -89,13 +104,13 @@ export function ActionMenu({ items, label }: { items: MenuItem[]; label: string 
             <button
                 ref={buttonRef}
                 type="button"
-                className={`menu-trigger ${open ? 'open' : ''}`}
+                className={`${children ? triggerClassName ?? '' : 'menu-trigger'} ${open ? 'open' : ''}`}
                 aria-label={label}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen(o => !o)}
             >
-                <Icon name="more" size={18} />
+                {children ?? <Icon name="more" size={18} />}
             </button>
 
             {open &&
