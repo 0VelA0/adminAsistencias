@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { api } from '../lib/api'
-import { fileToAvatar } from '../lib/image'
 import type { Profile, User } from '../lib/types'
-import { Avatar } from './Avatar'
 import { useToast } from './Toast'
 import { Icon } from './Icon'
+import { AvatarUploader } from './AvatarUploader'
 
 export function ProfileCard({
     token,
@@ -18,12 +17,10 @@ export function ProfileCard({
     onUserChange: (user: User) => void
 }) {
     const toast = useToast()
-    const fileRef = useRef<HTMLInputElement>(null)
 
     const [fullName, setFullName] = useState(profile.full_name)
     const [phone, setPhone] = useState(profile.phone ?? '')
     const [saving, setSaving] = useState(false)
-    const [avatarBusy, setAvatarBusy] = useState(false)
 
     const fail = (error: unknown, fallback: string) =>
         toast.error(error instanceof Error ? error.message : fallback)
@@ -51,44 +48,6 @@ export function ProfileCard({
         }
     }
 
-    const changeAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        event.target.value = ''
-        if (!file) return
-
-        setAvatarBusy(true)
-
-        try {
-            const avatar = await fileToAvatar(file)
-
-            onUserChange(
-                await api<User>(
-                    '/profile/avatar',
-                    { method: 'PUT', body: JSON.stringify({ avatar }) },
-                    token
-                )
-            )
-
-            toast.success('Foto actualizada.')
-        } catch (error) {
-            fail(error, 'No se pudo cambiar la foto.')
-        } finally {
-            setAvatarBusy(false)
-        }
-    }
-
-    const removeAvatar = async () => {
-        setAvatarBusy(true)
-
-        try {
-            onUserChange(await api<User>('/profile/avatar', { method: 'DELETE' }, token))
-            toast.success('Foto eliminada.')
-        } catch (error) {
-            fail(error, 'No se pudo eliminar la foto.')
-        } finally {
-            setAvatarBusy(false)
-        }
-    }
 
     return (
         <article className="dashboard-card">
@@ -104,30 +63,11 @@ export function ProfileCard({
 
             <form className="settings-form" onSubmit={save}>
                 <div className="profile-head">
-                    <Avatar user={user} size="lg" />
+                    <AvatarUploader token={token} user={user} onUserChange={onUserChange} size="lg" showRemove />
 
-                    <div className="avatar-actions">
-                        <button
-                            type="button"
-                            className="secondary compact"
-                            disabled={avatarBusy}
-                            onClick={() => fileRef.current?.click()}
-                        >
-                            {avatarBusy ? 'Procesando…' : 'Cambiar foto'}
-                        </button>
-
-                        {user.avatar && (
-                            <button
-                                type="button"
-                                className="secondary compact"
-                                disabled={avatarBusy}
-                                onClick={removeAvatar}
-                            >
-                                Quitar
-                            </button>
-                        )}
-
-                        <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeAvatar} />
+                    <div className="profile-head-text">
+                        <strong>Foto de perfil</strong>
+                        <small>Haz clic en la imagen para cambiarla. Se ajusta sola a un círculo.</small>
                     </div>
                 </div>
 

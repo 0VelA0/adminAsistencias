@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { longDate, timeAgo, ymd } from '../lib/format'
 import type { Post } from '../lib/types'
+import { ActionMenu } from './ActionMenu'
+import type { MenuItem } from './ActionMenu'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import { ImageLightbox } from './ImageLightbox'
@@ -31,45 +33,70 @@ const RSVP = [
 
 export function PostCard({
     post,
-    index,
-    busy,
+    index = 0,
+    busy = false,
+    isAdmin = false,
     onRespond,
     onEdit,
     onDelete,
     onShowResponses,
+    onToggleFeed,
+    onArchive,
 }: {
     post: Post
-    index: number
-    busy: boolean
+    index?: number
+    busy?: boolean
+    isAdmin?: boolean
     onRespond: (post: Post, response: string) => void
-    onEdit: (post: Post) => void
-    onDelete: (post: Post) => void
-    onShowResponses: (post: Post) => void
+    onEdit?: (post: Post) => void
+    onDelete?: (post: Post) => void
+    onShowResponses?: (post: Post) => void
+    onToggleFeed?: (post: Post, inFeed: boolean) => void
+    onArchive?: (post: Post, archived: boolean) => void
 }) {
     const [expanded, setExpanded] = useState(false)
+    const [viewer, setViewer] = useState(false)
 
     const meeting = post.kind === 'meeting'
-    const past = meeting && post.meeting_date !== null && post.meeting_date < ymd(new Date())
+    const past = meeting && (post.finished || (post.meeting_date !== null && post.meeting_date < ymd(new Date())))
     const long = post.body.length > 420
     const body = long && !expanded ? `${post.body.slice(0, 400).trimEnd()}…` : post.body
-    const [viewer, setViewer] = useState(false)
+
+    const menu: MenuItem[] = [
+        ...(post.can_manage && onEdit ? [{ label: 'Editar', icon: 'edit' as const, onSelect: () => onEdit(post) }] : []),
+        ...(post.can_manage && onShowResponses
+            ? [{ label: 'Ver respuestas', hint: 'Quién confirmó o leyó', icon: 'users' as const, onSelect: () => onShowResponses(post) }]
+            : []),
+        ...(isAdmin && onArchive
+            ? [{
+                  label: post.admin_archived ? 'Desarchivar' : 'Archivar',
+                  hint: post.admin_archived ? 'Vuelve al feed de todos' : 'Sale del feed de todos',
+                  icon: 'bookmark' as const,
+                  onSelect: () => onArchive(post, !post.admin_archived),
+              }]
+            : []),
+        ...(post.can_manage && onDelete
+            ? [{ label: 'Eliminar', icon: 'trash' as const, danger: true, dividerBefore: true, onSelect: () => onDelete(post) }]
+            : []),
+    ]
 
     return (
         <article
-            className={`post-card ${post.pinned ? 'pinned' : ''}`}
+            className={`post-card ${post.pinned ? 'pinned' : ''} ${post.archived ? 'archived' : ''}`}
             style={{ animationDelay: `${Math.min(index, 8) * 50}ms` }}
         >
             <header className="post-head">
-                <Avatar user={post.author} size="md" />
+                <span className="post-avatar">
+                    <Avatar user={post.author} size="md" />
+                </span>
 
                 <div className="post-author">
                     <strong>{post.author.full_name}</strong>
-                    <span>
-                        {[post.author.position, timeAgo(post.created_at)].filter(Boolean).join(' · ')}
-                    </span>
+                    <span>{[post.author.position, timeAgo(post.created_at)].filter(Boolean).join(' · ')}</span>
                 </div>
 
                 <div className="post-tags">
+                    {!post.seen && <span className="badge new-badge">Nuevo</span>}
                     {post.pinned && (
                         <span className="badge admin">
                             <Icon name="bookmark" size={11} /> Fijado
@@ -78,19 +105,23 @@ export function PostCard({
                     <span className="badge employee">{post.audience_label}</span>
                 </div>
 
-                {post.can_manage && (
-                    <div className="post-menu">
-                        <button type="button" className="secondary compact" aria-label="Editar" onClick={() => onEdit(post)}>
-                            <Icon name="edit" size={14} />
-                        </button>
-                        <button type="button" className="secondary compact" aria-label="Eliminar" onClick={() => onDelete(post)}>
-                            <Icon name="trash" size={14} />
-                        </button>
-                    </div>
-                )}
+                {menu.length > 0 && <ActionMenu label={`Opciones de "${post.title}"`} items={menu} />}
             </header>
 
-            <p className="post-kind">
+            {post.archived && (
+                <div className="post-archived-note">
+                    <Icon name="bookmark" size={13} />
+                    {post.admin_archived ? 'Archivado por un administrador.' : 'Reunión terminada, archivada automáticamente.'}
+
+                    {onToggleFeed && (
+                        <button type="button" className="link" onClick={() => onToggleFeed(post, true)}>
+                            Regresar a mi feed
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <p className={`post-kind ${meeting ? 'meeting' : ''}`}>
                 <Icon name={meeting ? 'calendar' : 'megaphone'} size={13} />
                 {meeting ? 'Reunión' : 'Comunicado'}
             </p>
@@ -101,29 +132,14 @@ export function PostCard({
                 <div className={`meeting-box ${past ? 'past' : ''}`}>
                     <div className="meeting-date">
                         <strong>{new Date(`${post.meeting_date}T00:00:00`).getDate()}</strong>
-                        <span>
-                            {new Date(`${post.meeting_date}T00:00:00`).toLocaleDateString('es-MX', { month: 'short' })}
-                        </span>
+                        <span>{new Date(`${post.meeting_date}T00:00:00`).toLocaleDateString('es-MX', { month: 'short' })}</span>
                     </div>
 
                     <div className="meeting-info">
                         <strong className="cap">{longDate(post.meeting_date)}</strong>
-                        <span>
-                            <Icon name="clock" size={13} /> {post.start_time}–{post.end_time}
-                        </span>
-
-                        {post.space_name && (
-                            <span>
-                                <Icon name="building" size={13} /> {post.space_name} (sala reservada)
-                            </span>
-                        )}
-
-                        {post.location && (
-                            <span>
-                                <Icon name="pin" size={13} /> {post.location}
-                            </span>
-                        )}
-
+                        <span><Icon name="clock" size={13} /> {post.start_time}–{post.end_time}</span>
+                        {post.space_name && <span><Icon name="building" size={13} /> {post.space_name} (sala reservada)</span>}
+                        {post.location && <span><Icon name="pin" size={13} /> {post.location}</span>}
                         {post.meeting_url && (
                             <a href={post.meeting_url} target="_blank" rel="noopener noreferrer">
                                 <Icon name="video" size={13} /> Unirse en línea
@@ -155,9 +171,7 @@ export function PostCard({
                 </button>
             )}
 
-            {viewer && post.image && (
-                <ImageLightbox src={post.image} alt={post.title} onClose={() => setViewer(false)} />
-            )}
+            {viewer && post.image && <ImageLightbox src={post.image} alt={post.title} onClose={() => setViewer(false)} />}
 
             <footer className="post-foot">
                 {meeting ? (
@@ -187,16 +201,14 @@ export function PostCard({
                     </button>
                 )}
 
-                {post.can_manage ? (
+                {post.can_manage && onShowResponses ? (
                     <button type="button" className="link" onClick={() => onShowResponses(post)}>
                         {meeting
                             ? `${post.counts.yes ?? 0} de ${post.audience_size} confirmaron`
                             : `${post.counts.seen ?? 0} de ${post.audience_size} enterados`}
                     </button>
                 ) : (
-                    <small>
-                        {meeting ? `${post.counts.yes ?? 0} asistirán` : `${post.counts.seen ?? 0} enterados`}
-                    </small>
+                    <small>{meeting ? `${post.counts.yes ?? 0} asistirán` : `${post.counts.seen ?? 0} enterados`}</small>
                 )}
             </footer>
         </article>

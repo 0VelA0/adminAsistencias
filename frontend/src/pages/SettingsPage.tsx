@@ -11,6 +11,7 @@ import { NotificationsCard } from '../components/NotificationsCard'
 import { ProfileCard } from '../components/ProfileCard'
 import { SecurityCard } from '../components/SecurityCard'
 import { StateView } from '../components/StatusBlocks'
+import { AvatarUploader } from '../components/AvatarUploader'
 
 type SectionKey = 'profile' | 'security' | 'notifications' | 'branding'
 
@@ -56,17 +57,7 @@ export function SettingsPage({
                 <div className="settings-cover" aria-hidden="true" />
 
                 <div className="settings-identity">
-                    <button
-                        type="button"
-                        className="settings-avatar"
-                        aria-label="Cambiar mi foto"
-                        onClick={() => setSection('profile')}
-                    >
-                        <Avatar user={user} size="lg" />
-                        <span className="avatar-edit">
-                            <Icon name="edit" size={12} />
-                        </span>
-                    </button>
+                    <AvatarUploader token={token} user={user} onUserChange={onUserChange} size="xl" />
 
                     <div className="settings-who">
                         <h2>{user.full_name}</h2>

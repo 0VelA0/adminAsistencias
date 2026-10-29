@@ -440,6 +440,7 @@ class Post(Base):
     meeting_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
     space_id: Mapped[int | None] = mapped_column(ForeignKey("spaces.id"), nullable=True)
     booking_id: Mapped[int | None] = mapped_column(ForeignKey("space_bookings.id"), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
@@ -492,3 +493,14 @@ class OfficeDayChange(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+class PostUserState(Base):
+    __tablename__ = "post_user_states"
+
+    __table_args__ = (UniqueConstraint("post_id", "user_id", name="uq_post_user_state"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    restored: Mapped[bool] = mapped_column(Boolean, default=False)  # el usuario lo regresó a su feed

@@ -13,6 +13,7 @@ import { IncidenceCodesModal } from '../components/IncidenceCodesModal'
 import { StateView } from '../components/StatusBlocks'
 import { useToast } from '../components/Toast'
 import { PageHeader } from '../components/PageHeader'
+import { toDate, ymd, formatDay } from '../lib/format'
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -46,6 +47,125 @@ function Kpi({
     )
 }
 
+function CalendarMatrix({ data }: { data: ReportPreview }) {
+    if (!data.days.length) {
+        return <p className="empty">El calendario está disponible para periodos de hasta 2 meses.</p>
+    }
+
+    const codes = new Map(data.codes.map(c => [c.key, c]))
+    const cells = new Map(data.days.map(d => [`${d.user_id}|${d.day}`, d]))
+    const dates: string[] = []
+
+    for (let d = toDate(data.start); ymd(d) <= data.end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        dates.push(ymd(d))
+    }
+
+    return (
+        <>
+            <div className="matrix-scroll">
+                <table className="matrix">
+                    <thead>
+                        <tr>
+                            <th className="matrix-name">Empleado</th>
+                            {dates.map(d => {
+                                const weekday = (toDate(d).getDay() + 6) % 7
+
+                                return (
+                                    <th key={d} className={weekday > 4 ? 'weekend' : ''}>
+                                        <span>{'LMXJVSD'[weekday]}</span>
+                                        {toDate(d).getDate()}
+                                    </th>
+                                )
+                            })}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {data.people.map(p => (
+                            <tr key={p.user_id}>
+                                <th className="matrix-name">{p.full_name}</th>
+
+                                {dates.map(d => {
+                                    const item = cells.get(`${p.user_id}|${d}`)
+                                    const code = item ? codes.get(item.key) : undefined
+
+                                    return (
+                                        <td
+                                            key={d}
+                                            className={item?.incomplete ? 'incomplete' : ''}
+                                            style={code ? { background: code.color } : undefined}
+                                            title={code ? `${code.label}${item?.incomplete ? ' · sin salida' : ''}` : ''}
+                                        >
+                                            {code?.code ?? ''}
+                                        </td>
+                                    )
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="matrix-legend">
+                {data.codes.map(c => (
+                    <span key={c.key}>
+                        <i style={{ background: c.color }}>{c.code}</i> {c.label}
+                    </span>
+                ))}
+            </div>
+        </>
+    )
+}
+
+function IncidentsList({ data }: { data: ReportPreview }) {
+    const codes = new Map(data.codes.map(c => [c.key, c]))
+
+    if (!data.incidents.length) {
+        return <p className="empty">No hay incidencias en este periodo.</p>
+    }
+
+    return (
+        <div className="table-card">
+            <div className="table-scroll">
+                <table className="data-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Empleado</th>
+                            <th>Clave</th>
+                            <th>Descripción</th>
+                            <th className="num">Minutos</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {data.incidents.map((item, i) => {
+                            const code = codes.get(item.key)
+
+                            return (
+                                <tr key={`${item.user_id}-${item.day}-${item.key}-${i}`}>
+                                    <td data-label="Fecha">{formatDay(item.day)}</td>
+                                    <td data-label="Empleado">
+                                        <strong>{item.full_name}</strong>
+                                        {item.employee_code && <small className="cell-sub">{item.employee_code}</small>}
+                                    </td>
+                                    <td data-label="Clave">
+                                        <span className="code-chip" style={{ background: code?.color }}>{code?.code}</span>
+                                    </td>
+                                    <td data-label="Descripción">{code?.label}</td>
+                                    <td data-label="Minutos" className="num">{item.minutes ?? '–'}</td>
+                                    <td data-label="Observaciones">{item.note ?? '–'}</td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    )
+}
+
 export function ReportsPage({ token }: { token: string }) {
     const toast = useToast()
 
@@ -56,6 +176,7 @@ export function ReportsPage({ token }: { token: string }) {
     const [codesOpen, setCodesOpen] = useState(false)
     const [codesVersion, setCodesVersion] = useState(0)
     const [download, setDownload] = useState<'idle' | 'busy' | 'done'>('idle')
+    const [view, setView] = useState<'summary' | 'calendar' | 'incidents'>('summary')
 
     const people = useAsync(() => api<Person[]>('/people?include_inactive=true', {}, token), [token])
 
@@ -203,15 +324,31 @@ export function ReportsPage({ token }: { token: string }) {
             </section>
 
             <section className="dashboard-card history-card">
-                <div className="section-title history-title">
+                <div className="preview-head">
                     <h2>Vista previa</h2>
-                    {preview.data && <span>{preview.data.people.length} empleados</span>}
+
+                    <div className="filter-tabs" role="tablist">
+                        {([
+                            ['summary', 'Resumen', 'users'],
+                            ['calendar', 'Calendario', 'calendar'],
+                            ['incidents', 'Incidencias', 'alert'],
+                        ] as const).map(([value, label, icon]) => (
+                            <button key={value} type="button" className={view === value ? 'active' : ''} onClick={() => setView(value)}>
+                                <Icon name={icon} size={14} /> {label}
+                                {value === 'incidents' && preview.data && <span className="tab-count">{preview.data.incidents.length}</span>}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <StateView state={preview}>
                     {data =>
                         data.people.length === 0 ? (
-                            <p className="empty">No hay empleados con los filtros elegidos.</p>
+                            <p className="empty">No hay personas con los filtros elegidos.</p>
+                        ) : view === 'calendar' ? (
+                            <CalendarMatrix data={data} />
+                        ) : view === 'incidents' ? (
+                            <IncidentsList data={data} />
                         ) : (
                             <div className="table-card">
                                 <div className="table-scroll">

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
+import { emit } from '../lib/events'
 
 const todayISO = () => {
     const d = new Date()
@@ -43,6 +44,8 @@ export function PermissionModal({
                 },
                 token
             )
+
+            emit('requests:changed')
 
             await onCreated()
             onClose()

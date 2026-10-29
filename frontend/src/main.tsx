@@ -327,7 +327,7 @@ function App() {
 
                             {activePage === 'admin-reports' && <ReportsPage token={token} />}
 
-                            {activePage === 'news' && <NewsPage token={token} />}
+                            {activePage === 'news' && <NewsPage token={token} user={user} />}
 
                             {activePage === 'calendar' && <CalendarPage token={token} user={user} onNavigate={goTo} />}
                         </>
@@ -401,7 +401,7 @@ function App() {
 
                         {activePage === 'team' && <TeamPage token={token} user={user} />}
 
-                        {activePage === 'news' && <NewsPage token={token} />}
+                        {activePage === 'news' && <NewsPage token={token} user={user} />}
                         
                         {activePage === 'calendar' && <CalendarPage token={token} user={user} onNavigate={goTo} />}
                             

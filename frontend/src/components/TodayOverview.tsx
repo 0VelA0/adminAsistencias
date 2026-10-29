@@ -1,44 +1,61 @@
-import type { AsyncState } from '../lib/useAsync.ts'
-import { formatRange } from '../lib/format'
+import type { AsyncState } from '../lib/useAsync'
+import { formatRange, parseServerDate } from '../lib/format'
 import type { TodayOverview as TodayOverviewData, User } from '../lib/types'
 import { Avatar } from './Avatar'
-import { StateView } from '../components/StatusBlocks'
+import { Icon } from './Icon'
+import type { IconName } from './Icon'
+import { StateView } from './StatusBlocks'
 
 const hhmm = (value: string) =>
-    new Date(value).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    parseServerDate(value).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
-function PersonRow({
-    user,
-    line,
-    badge,
-}: {
-    user: User
-    line: string
-    badge?: React.ReactNode
-}) {
+function Row({ user, line, meta, tone }: { user: User; line: string; meta?: string; tone?: string }) {
     return (
-        <div className="person-item">
+        <li className="overview-row">
             <Avatar user={user} size="sm" />
-
             <div className="person-text">
                 <strong>{user.full_name}</strong>
                 <span>{line}</span>
             </div>
-
-            {badge}
-        </div>
+            {meta && <span className={`overview-meta ${tone ?? ''}`}>{meta}</span>}
+        </li>
     )
 }
 
-function CardTitle({ eyebrow, title, count }: { eyebrow: string; title: string; count: number | string }) {
+function Panel({
+    icon,
+    tone,
+    title,
+    count,
+    empty,
+    children,
+}: {
+    icon: IconName
+    tone: string
+    title: string
+    count: number
+    empty: string
+    children: React.ReactNode
+}) {
     return (
-        <div className="dashboard-card-title">
-            <div>
-                <p className="eyebrow">{eyebrow}</p>
+        <article className="dashboard-card overview-panel">
+            <header className="overview-panel-head">
+                <span className={`overview-panel-icon ${tone}`}>
+                    <Icon name={icon} size={17} />
+                </span>
                 <h2>{title}</h2>
-            </div>
-            <span className="dashboard-card-icon">{count}</span>
-        </div>
+                <span className={`overview-count ${tone}`}>{count}</span>
+            </header>
+
+            {count === 0 ? (
+                <div className="overview-empty">
+                    <Icon name={icon} size={22} />
+                    <p>{empty}</p>
+                </div>
+            ) : (
+                <ul className="overview-list">{children}</ul>
+            )}
+        </article>
     )
 }
 
@@ -47,115 +64,56 @@ export function TodayOverview({ state }: { state: AsyncState<TodayOverviewData> 
         <StateView state={state}>
             {data => (
                 <section className="today-grid">
-                    {/* SIN REGISTRAR */}
-                    <article className="dashboard-card">
-                        <CardTitle
-                            eyebrow="ASISTENCIA"
-                            title="Sin registrar hoy"
-                            count={data.is_workday ? data.missing.length : '–'}
-                        />
+                    <Panel
+                        icon="alert"
+                        tone="bad"
+                        title="Sin registrar"
+                        count={data.is_workday ? data.missing.length : 0}
+                        empty={
+                            data.holiday_name
+                                ? `Hoy es festivo: ${data.holiday_name}.`
+                                : !data.is_workday
+                                  ? 'Hoy no es día laborable.'
+                                  : 'Todo el equipo está al día.'
+                        }
+                    >
+                        {data.missing.map(user => (
+                            <Row key={user.id} user={user} line={user.email} meta="Pendiente" tone="bad" />
+                        ))}
+                    </Panel>
 
-                        {!data.is_workday ? (
-                            <p className="pending-request-empty">
-                                {data.holiday_name ? `Hoy es festivo: ${data.holiday_name}.` : 'Hoy no es día laborable.'}
-                            </p>
-                        ) : (
-                            <>
-                                {data.pending_count > 0 && (
-                                    <p className="notice">
-                                        {data.pending_count} {data.pending_count === 1 ? 'persona aún está' : 'personas aún están'} dentro
-                                        de su horario de entrada.
-                                    </p>
-                                )}
+                    <Panel icon="check" tone="ok" title="Ya registraron" count={data.registered.length} empty="Nadie ha iniciado su jornada todavía.">
+                        {data.registered.map(item => (
+                            <Row
+                                key={item.user.id}
+                                user={item.user}
+                                line={`${item.exit_at ? `Salida ${hhmm(item.exit_at)}` : 'En curso'}${item.remote ? ' · Remoto' : ''}`}
+                                meta={hhmm(item.entry_at)}
+                                tone={item.status === 'late' ? 'warn' : 'ok'}
+                            />
+                        ))}
+                    </Panel>
 
-                                {data.missing.length === 0 ? (
-                                    <p className="pending-request-empty">
-                                        Todo el equipo está al día.
-                                    </p>
-                                ) : (
-                                    <div className="today-list">
-                                        {data.missing.map(user => (
-                                            <PersonRow key={user.id} user={user} line={user.email} />
-                                        ))}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </article>
-
-                    {/* YA REGISTRARON */}
-                    <article className="dashboard-card">
-                        <CardTitle
-                            eyebrow="ASISTENCIA"
-                            title="Ya registraron hoy"
-                            count={data.registered.length}
-                        />
-
-                        {data.registered.length === 0 ? (
-                            <p className="pending-request-empty">Nadie ha registrado entrada todavía.</p>
-                        ) : (
-                            <div className="today-list">
-                                {data.registered.map(item => (
-                                    <PersonRow
-                                        key={item.user.id}
-                                        user={item.user}
-                                        line={`Entrada ${hhmm(item.entry_at)} · ${
-                                            item.exit_at ? `Salida ${hhmm(item.exit_at)}` : 'En curso'
-                                        }${item.remote ? ' · Remoto' : ''}`}
-                                        badge={
-                                            item.status === 'late' ? (
-                                                <span className="badge late">Retardo</span>
-                                            ) : undefined
-                                        }
-                                    />
-                                    
-                                ))}
-                                
-                            </div>
-                        )}
-                    </article>
-
-                    {/* VACACIONES */}
-                    <article className="dashboard-card">
-                        <CardTitle
-                            eyebrow="AUSENCIAS"
-                            title="De vacaciones"
-                            count={data.on_vacation.length}
-                        />
-
-                        {data.on_vacation.length === 0 ? (
-                            <p className="pending-request-empty">Nadie está de vacaciones hoy.</p>
-                        ) : (
-                            <div className="today-list">
-                                {data.on_vacation.map(item => (
-                                    <PersonRow
-                                        key={item.user.id}
-                                        user={item.user}
-                                        line={formatRange(item.start_date, item.end_date)}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {data.on_permission.length > 0 && (
-                            <>
-                                <p className="today-subtitle">Con permiso hoy</p>
-
-                                <div className="today-list">
-                                    {data.on_permission.map(item => (
-                                        <PersonRow
-                                            key={item.user.id}
-                                            user={item.user}
-                                            line={`${item.kind === 'paid' ? 'Con goce' : 'Sin goce'} · ${formatRange(
-                                                item.start_date,
-                                                item.end_date
-                                            )}`}
-                                        />
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </article>
+                    <Panel
+                        icon="sun"
+                        tone="info"
+                        title="Ausencias autorizadas"
+                        count={data.on_vacation.length + data.on_permission.length}
+                        empty="Nadie está de vacaciones ni con permiso hoy."
+                    >
+                        {data.on_vacation.map(item => (
+                            <Row key={`v-${item.user.id}`} user={item.user} line={formatRange(item.start_date, item.end_date)} meta="Vacaciones" tone="info" />
+                        ))}
+                        {data.on_permission.map(item => (
+                            <Row
+                                key={`p-${item.user.id}`}
+                                user={item.user}
+                                line={formatRange(item.start_date, item.end_date)}
+                                meta={item.kind === 'paid' ? 'Con goce' : 'Sin goce'}
+                                tone="purple"
+                            />
+                        ))}
+                    </Panel>
                 </section>
             )}
         </StateView>

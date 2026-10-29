@@ -287,6 +287,16 @@ export type ReportPreview = {
     totals: Record<string, number>
     hours: number
     late_minutes: number
+    days: { user_id: number; day: string; key: string; incomplete: boolean }[]
+    incidents: {
+        user_id: number
+        full_name: string
+        employee_code: string | null
+        day: string
+        key: string
+        minutes: number | null
+        note: string | null
+    }[]
 }
 
 export type PostAuthor = { id: number; full_name: string; avatar: string | null; position: string | null }
@@ -315,6 +325,10 @@ export type Post = {
     booking_id: number | null
     audience_size: number
     can_manage: boolean
+    seen: boolean
+    archived: boolean
+    admin_archived: boolean
+    finished: boolean
 }
 
 export type PostsMeta = {

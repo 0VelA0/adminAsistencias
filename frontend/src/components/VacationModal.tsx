@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import { countWorkdays } from '../lib/format'
 import type { VacationRequest } from '../lib/types'
+import { emit } from '../lib/events'
 
 export function VacationModal({
     token,
@@ -41,6 +42,8 @@ export function VacationModal({
                 },
                 token
             )
+
+            emit('requests:changed') 
 
             await onCreated()
             onClose()
@@ -109,7 +112,7 @@ export function VacationModal({
                 {error && <p className="error">{error}</p>}
 
                 <div className="modal-actions">
-                    <button type="button" className="secondary" onClick={onClose}>
+                    <button type="button" className="secondary" onClick={onClose} >
                         Cancelar
                     </button>
                     <button type="submit" disabled={sending || over || days === 0}>

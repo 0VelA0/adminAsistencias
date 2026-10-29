@@ -13,12 +13,14 @@ export function PostModal({
     token,
     meta,
     post,
+    initialKind,
     onClose,
     onSaved,
 }: {
     token: string
     meta: PostsMeta
     post: Post | null
+    initialKind?: Post['kind']
     onClose: () => void
     onSaved: () => void
 }) {
@@ -32,7 +34,7 @@ export function PostModal({
         ...meta.departments.map(d => ({ value: `dept:${d}`, label: `Área: ${d}` })),
     ]
 
-    const [kind, setKind] = useState<Post['kind']>(post?.kind ?? 'announcement')
+    const [kind, setKind] = useState<Post['kind']>(post?.kind ?? initialKind ?? 'announcement')
     const [title, setTitle] = useState(post?.title ?? '')
     const [body, setBody] = useState(post?.body ?? '')
     const [image, setImage] = useState<string | null>(post?.image ?? null)

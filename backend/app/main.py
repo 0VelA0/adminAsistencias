@@ -27,7 +27,7 @@ from openpyxl.utils import get_column_letter
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode,Post,PostResponse,AttendanceBreak,OfficeDayChange
+from .models import AttendanceRecord, QrSession, User, VacationRequest,PermissionRequest,UserPreferences,CompanySettings,Notification,SpaceBooking,Space,Holiday,EmployeeProfile,IncidenceCode,Post,PostResponse,AttendanceBreak,OfficeDayChange,PostUserState
 from .schemas import (
     AdminVacationCreate,
     AttendanceAdminOut,
@@ -97,7 +97,12 @@ from .schemas import (
     CalendarEventOut,
     BreakOut,
     OfficeDayOut,
-    OfficeChangeIn
+    OfficeChangeIn,
+    SeenIn,
+    FeedIn,
+    ArchiveIn,
+    ReportDayOut,
+    ReportIncidentOut
 )
 
 
@@ -1058,6 +1063,7 @@ def startup():
     add_missing_columns("employee_profiles", PROFILE_COLUMNS)
     add_missing_columns("attendance_records", ATTENDANCE_COLUMNS)
     add_missing_columns("notifications", {"dismissed_at": "TIMESTAMP WITH TIME ZONE"})
+    add_missing_columns("posts", {"archived_at": "TIMESTAMP WITH TIME ZONE"})
 
     db = SessionLocal()
 
@@ -3606,6 +3612,7 @@ def purge_user(db: Session, user: User) -> None:
     if own_posts:
         db.execute(delete(PostResponse).where(PostResponse.post_id.in_(own_posts)))
         db.execute(delete(Post).where(Post.id.in_(own_posts)))
+        db.execute(delete(PostUserState).where(PostUserState.post_id.in_(own_posts)))
 
     db.execute(delete(PostResponse).where(PostResponse.user_id == uid))
 
@@ -3618,7 +3625,8 @@ def purge_user(db: Session, user: User) -> None:
         UserPreferences,
         SpaceBooking,
         AttendanceBreak,
-        OfficeDayChange
+        OfficeDayChange,
+        PostUserState
     ):
         db.execute(delete(model).where(model.user_id == uid))
 
@@ -4145,6 +4153,29 @@ ROLE_KEYS = {"": "employee", "empleado": "employee", "administrador": "admin", "
 EMAIL_ADAPTER = TypeAdapter(EmailStr)
 
 
+def collect_incidents(days, shortfalls, codes) -> list[tuple]:
+    """(usuario, día, clave, minutos, nota) de todo lo que va a nómina."""
+
+    rows = []
+
+    for item in days:
+        if codes[item.key].include_in_incidences and item.key != "incomplete":
+            rows.append((item.user, item.day, item.key, item.late_minutes or None, item.note))
+
+        if item.incomplete and codes["incomplete"].include_in_incidences:
+            rows.append((item.user, item.day, "incomplete", None, "Entrada sin salida registrada"))
+
+        if item.early_minutes and codes["early_exit"].include_in_incidences:
+            rows.append((item.user, item.day, "early_exit", item.early_minutes, "Salió antes de su horario"))
+
+    for item in shortfalls:
+        if codes["short_hours"].include_in_incidences:
+            rows.append((item.user, item.day, "short_hours", item.short_minutes, item.note))
+
+    rows.sort(key=lambda r: (r[0].full_name, r[1]))
+
+    return rows
+
 def cell_text(value) -> str:
     if value is None:
         return ""
@@ -4639,6 +4670,31 @@ def report_preview(
             )
         )
 
+    codes = {c.key: c for c in load_codes(db)}
+    with_calendar = (data.end - data.start).days <= 62
+
+    days_out = [
+        ReportDayOut(user_id=d.user.id, day=d.day, key=d.key, incomplete=d.incomplete)
+        for d in days
+    ] if with_calendar else []
+
+    incidents_out = []
+
+    for user_item, day, key, minutes, note in collect_incidents(days, shortfalls, codes):
+        code, _, _ = employee_fields(user_item, profiles)
+
+        incidents_out.append(
+            ReportIncidentOut(
+                user_id=user_item.id,
+                full_name=user_item.full_name,
+                employee_code=code or None,
+                day=day,
+                key=key,
+                minutes=minutes,
+                note=note,
+            )
+        )
+
     return ReportPreviewOut(
         start=data.start,
         end=data.end,
@@ -4647,6 +4703,8 @@ def report_preview(
         totals={k: sum(p.counts[k] for p in people) for k in REPORT_KEYS},
         hours=round(sum(p.hours for p in people), 2),
         late_minutes=sum(p.late_minutes for p in people),
+        days=days_out,
+        incidents=incidents_out,
     )
 
 
@@ -4747,38 +4805,12 @@ def report_export(
 
     # ---------- 2. Incidencias (lo que se captura en nómina) ----------
     incidents = workbook.create_sheet("Incidencias")
+
     incident_rows = []
 
-    for item in days:
-        code, _, _ = employee_fields(item.user, profiles)
-        info = codes[item.key]
-
-        if info.include_in_incidences and item.key != "incomplete":
-            incident_rows.append([
-                code, item.user.full_name, item.day, info.code, info.label,
-                1, item.late_minutes or None, item.note or "",
-            ])
-
-        if item.incomplete and codes["incomplete"].include_in_incidences:
-            incident_rows.append([
-                code, item.user.full_name, item.day, codes["incomplete"].code,
-                codes["incomplete"].label, 1, None, "Entrada sin salida registrada",
-            ])
-
-        if item.early_minutes and codes["early_exit"].include_in_incidences:
-            incident_rows.append([
-                code, item.user.full_name, item.day, codes["early_exit"].code,
-                codes["early_exit"].label, 1, item.early_minutes, "Salió antes de su horario",
-            ])
-
-    for item in shortfalls:
-        code, _, _ = employee_fields(item.user, profiles)
-
-        if codes["short_hours"].include_in_incidences:
-            incident_rows.append([
-                code, item.user.full_name, item.day, codes["short_hours"].code,
-                codes["short_hours"].label, 1, item.short_minutes, item.note or "",
-            ])
+    for user_item, day, key, minutes, note in collect_incidents(days, shortfalls, codes):
+        code, _, _ = employee_fields(user_item, profiles)
+        incident_rows.append([code, user_item.full_name, day, codes[key].code, codes[key].label, 1, minutes, note or ""])
 
     write_table(
         incidents,
@@ -4929,6 +4961,39 @@ def audience_context(db: Session) -> AudienceContext:
         positions={p.user_id: p.position for p in profiles},
         children=children,
     )
+
+def meeting_finished(post: Post, now_local: datetime) -> bool:
+    if post.kind != "meeting" or not post.meeting_date:
+        return False
+
+    today = now_local.date()
+
+    if post.meeting_date < today:
+        return True
+
+    return post.meeting_date == today and (post.end_minutes or 0) <= now_local.hour * 60 + now_local.minute
+
+
+def post_states(db: Session, user_id: int, post_ids: list[int]) -> dict[int, PostUserState]:
+    if not post_ids:
+        return {}
+
+    return {
+        s.post_id: s
+        for s in db.scalars(
+            select(PostUserState).where(
+                PostUserState.user_id == user_id,
+                PostUserState.post_id.in_(post_ids),
+            )
+        ).all()
+    }
+
+
+def archived_for(post: Post, state: "PostUserState | None", now_local: datetime) -> bool:
+    if state and state.restored:
+        return False
+
+    return post.archived_at is not None or meeting_finished(post, now_local)
 
 
 def team_of(user_id: int, ctx: AudienceContext) -> set[int]:
@@ -5115,6 +5180,8 @@ def build_posts_out(db: Session, posts: list[Post], user: User, ctx: AudienceCon
     ids = [p.id for p in posts]
     counts = {pid: {"seen": 0, "yes": 0, "no": 0, "maybe": 0} for pid in ids}
     mine: dict[int, str] = {}
+    now_local = get_local_now()
+    states = post_states(db, user.id, ids)
 
     for response in db.scalars(select(PostResponse).where(PostResponse.post_id.in_(ids))).all():
         counts[response.post_id][response.response] = counts[response.post_id].get(response.response, 0) + 1
@@ -5167,6 +5234,15 @@ def build_posts_out(db: Session, posts: list[Post], user: User, ctx: AudienceCon
                 booking_id=post.booking_id,
                 audience_size=len(audience_members(post, ctx) - {post.author_id}),
                 can_manage=user.role == "admin" or user.id == post.author_id,
+                seen=(
+                    post.author_id == user.id
+                    or post.id in mine
+                    or bool(states.get(post.id) and states[post.id].seen_at)
+                    or meeting_finished(post, now_local)
+                ),
+                archived=archived_for(post, states.get(post.id), now_local),
+                admin_archived=post.archived_at is not None,
+                finished=meeting_finished(post, now_local),
             )
         )
 
@@ -5230,6 +5306,7 @@ def posts_meta(
 def list_posts(
     kind: str | None = None,
     upcoming: bool = False,
+    archived: bool = False,
     limit: int = 20,
     user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
@@ -5238,10 +5315,9 @@ def list_posts(
     query = select(Post)
 
     if upcoming:
-        query = query.where(
-            Post.kind == "meeting",
-            Post.meeting_date >= get_work_date(),
-        ).order_by(Post.meeting_date, Post.start_minutes)
+        query = query.where(Post.kind == "meeting", Post.meeting_date >= get_work_date()).order_by(
+            Post.meeting_date, Post.start_minutes
+        )
     else:
         if kind in ("announcement", "meeting"):
             query = query.where(Post.kind == kind)
@@ -5249,9 +5325,113 @@ def list_posts(
         query = query.order_by(Post.pinned.desc(), Post.created_at.desc())
 
     visible = [p for p in db.scalars(query).all() if can_see(p, user, ctx)]
+    now_local = get_local_now()
+    states = post_states(db, user.id, [p.id for p in visible])
+
+    visible = [
+        p
+        for p in visible
+        if archived_for(p, states.get(p.id), now_local) == (archived and not upcoming)
+    ]
 
     return build_posts_out(db, visible[: max(1, min(limit, 100))], user, ctx)
 
+
+@app.get("/posts/unseen-count")
+def unseen_posts_count(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    now_local = get_local_now()
+    since = datetime.now(timezone.utc) - timedelta(days=60)
+
+    posts = [
+        p
+        for p in db.scalars(select(Post).where(Post.created_at >= since)).all()
+        if p.author_id != user.id and can_see(p, user, ctx)
+    ]
+
+    states = post_states(db, user.id, [p.id for p in posts])
+    responded = set(db.scalars(select(PostResponse.post_id).where(PostResponse.user_id == user.id)).all())
+
+    count = sum(
+        1
+        for p in posts
+        if not archived_for(p, states.get(p.id), now_local)
+        and not (p.id in responded or (states.get(p.id) and states[p.id].seen_at))
+    )
+
+    return {"count": count}
+
+
+@app.post("/posts/seen")
+def mark_posts_seen(
+    data: SeenIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    if not data.ids:
+        return {"ok": True}
+
+    now = datetime.now(timezone.utc)
+    states = post_states(db, user.id, data.ids)
+
+    for post_id in db.scalars(select(Post.id).where(Post.id.in_(data.ids))).all():
+        state = states.get(post_id)
+
+        if state is None:
+            db.add(PostUserState(post_id=post_id, user_id=user.id, seen_at=now))
+        elif not state.seen_at:
+            state.seen_at = now
+
+    db.commit()
+
+    return {"ok": True}
+
+
+@app.post("/posts/{post_id}/feed", response_model=PostOut)
+def set_post_in_feed(
+    post_id: int,
+    data: FeedIn,
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+):
+    ctx = audience_context(db)
+    post = db.get(Post, post_id)
+
+    if not post or not can_see(post, user, ctx):
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    state = post_states(db, user.id, [post.id]).get(post.id)
+
+    if state is None:
+        state = PostUserState(post_id=post.id, user_id=user.id)
+        db.add(state)
+
+    state.restored = data.in_feed
+    state.seen_at = state.seen_at or datetime.now(timezone.utc)
+    db.commit()
+
+    return build_posts_out(db, [post], user, ctx)[0]
+
+
+@app.post("/posts/{post_id}/archive", response_model=PostOut)
+def archive_post(
+    post_id: int,
+    data: ArchiveIn,
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    post = db.get(Post, post_id)
+
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada.")
+
+    post.archived_at = datetime.now(timezone.utc) if data.archived else None
+    db.commit()
+
+    return build_posts_out(db, [post], admin, audience_context(db))[0]
 
 @app.post("/posts", response_model=PostOut)
 def create_post(
@@ -5348,6 +5528,7 @@ def delete_post(
 
     cancel_post_booking(db, post)
     db.execute(delete(PostResponse).where(PostResponse.post_id == post.id))
+    db.execute(delete(PostUserState).where(PostUserState.post_id == post.id))
     db.delete(post)
     db.commit()
 
@@ -5392,6 +5573,13 @@ def respond_post(
 
         existing.response = data.response
         existing.comment = (data.comment or "").strip() or None
+
+    seen_state = post_states(db, user.id, [post.id]).get(post.id)
+
+    if seen_state is None:
+        db.add(PostUserState(post_id=post.id, user_id=user.id, seen_at=datetime.now(timezone.utc)))
+    elif not seen_state.seen_at:
+        seen_state.seen_at = datetime.now(timezone.utc)
 
     db.commit()
 

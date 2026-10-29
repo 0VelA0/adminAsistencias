@@ -7,12 +7,14 @@ import { RecordTable } from '../components/RecordTable'
 import { StateView } from '../components/StatusBlocks'
 import { StationQrPanel } from '../components/StationQrPanel'
 import { TodayOverview } from '../components/TodayOverview'
-import { Icon } from '../components/Icon'
+import { Icon, IconName } from '../components/Icon'
 import { ymd, parseServerDate, toDate } from '../lib/format'
 import { ManualRecordModal } from '../components/ManualRecordModal'
 import type { ManualMode } from '../components/ManualRecordModal'
 import { SearchField } from '../components/SearchField';
 import { PageHeader } from '../components/PageHeader'
+import { useCountUp } from '../lib/useCountUp'
+import { useAppEvent } from '../lib/events'
 
 type Section = 'home' | 'requests' | 'attendance'
 
@@ -44,6 +46,39 @@ function daysAgo(date: string) {
     return diff === 1 ? 'Ayer' : `Hace ${diff} días`
 }
 
+function StatTile({
+    label,
+    value,
+    icon,
+    tone,
+    onClick,
+}: {
+    label: string
+    value: number | null
+    icon: IconName
+    tone: string
+    onClick?: () => void
+}) {
+    const shown = useCountUp(value ?? 0)
+
+    return (
+        <article
+            className={`stat-tile ${tone} ${onClick ? 'clickable' : ''}`}
+            role={onClick ? 'button' : undefined}
+            tabIndex={onClick ? 0 : undefined}
+            onClick={onClick}
+            onKeyDown={e => onClick && e.key === 'Enter' && onClick()}
+        >
+            <span className="stat-icon">
+                <Icon name={icon} size={18} />
+            </span>
+            <strong>{value === null ? '–' : Math.round(shown)}</strong>
+            <span>{label}</span>
+            {onClick && <Icon name="right" size={14} />}
+        </article>
+    )
+}
+
 function AdminHome({
     token,
     refresh,
@@ -53,10 +88,7 @@ function AdminHome({
     refresh: number
     onNavigate: (page: Page) => void
 }) {
-    const overview = useAsync(
-        () => api<TodayOverviewData>('/attendance/today-overview', {}, token),
-        [token, refresh]
-    )
+    const overview = useAsync(() => api<TodayOverviewData>('/attendance/today-overview', {}, token), [token, refresh])
 
     const pending = useAsync(async () => {
         const [vacations, permissions] = await Promise.all([
@@ -67,50 +99,98 @@ function AdminHome({
         return [...vacations, ...permissions].filter(r => r.status === 'pending').length
     }, [token, refresh])
 
+    useAppEvent('requests:changed', pending.reload)
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                overview.reload()
+                pending.reload()
+            }
+        }, 60_000)
+
+        return () => clearInterval(id)
+    }, [overview.reload, pending.reload])
+
     const data = overview.data
+    const registered = data?.registered.length ?? 0
+    const late = data?.registered.filter(r => r.status === 'late').length ?? 0
+    const remote = data?.registered.filter(r => r.remote).length ?? 0
+    const missing = data?.missing.length ?? 0
+    const waiting = data?.pending_count ?? 0
+    const away = (data?.on_vacation.length ?? 0) + (data?.on_permission.length ?? 0)
+    const expected = registered + missing + waiting
+    const rate = expected ? registered / expected : 0
+    const ring = 2 * Math.PI * 42
+
+    const headline = !data
+        ? 'Cargando el día…'
+        : data.holiday_name
+          ? `Hoy es festivo: ${data.holiday_name}`
+          : !data.is_workday
+            ? 'Hoy no es día laborable'
+            : `${registered} de ${expected} ${expected === 1 ? 'persona ya inició' : 'personas ya iniciaron'} su jornada`
 
     return (
         <>
+            <section className="admin-hero">
+                <div className="hero-ring" aria-label={`Asistencia de hoy: ${Math.round(rate * 100)}%`}>
+                    <svg viewBox="0 0 100 100" aria-hidden="true">
+                        <circle className="hero-ring-track" cx="50" cy="50" r="42" />
+                        <circle
+                            className="hero-ring-value"
+                            cx="50"
+                            cy="50"
+                            r="42"
+                            strokeDasharray={ring}
+                            strokeDashoffset={ring * (1 - rate)}
+                        />
+                    </svg>
+                    <div>
+                        <strong>{Math.round(rate * 100)}%</strong>
+                        <span>asistencia</span>
+                    </div>
+                </div>
+
+                <div className="admin-hero-text">
+                    <p className="eyebrow cap">
+                        {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                    <h3>{headline}</h3>
+
+                    <div className="hero-chips">
+                        <span className="hero-chip warn"><Icon name="clock" size={12} /> {late} retardos</span>
+                        <span className="hero-chip teal"><Icon name="home" size={12} /> {remote} remotos</span>
+                        <span className="hero-chip blue"><Icon name="sun" size={12} /> {away} ausencias autorizadas</span>
+                        {waiting > 0 && <span className="hero-chip muted"><Icon name="history" size={12} /> {waiting} en tolerancia</span>}
+                    </div>
+                </div>
+
+                <div className="admin-hero-actions">
+                    <button type="button" onClick={() => onNavigate('admin-requests')}>
+                        <Icon name="clipboard" size={15} /> Solicitudes
+                        {(pending.data ?? 0) > 0 && <span className="hero-count">{pending.data}</span>}
+                    </button>
+                    <button type="button" className="secondary" onClick={() => onNavigate('admin-attendance')}>
+                        <Icon name="edit" size={15} /> Registro manual
+                    </button>
+                    <button type="button" className="secondary" onClick={() => onNavigate('admin-reports')}>
+                        <Icon name="download" size={15} /> Reporte
+                    </button>
+                </div>
+            </section>
+
             <section className="admin-stats">
-                <article className="overview-card">
-                    <Icon name="check" />
-                    <div>
-                        <strong>{data ? data.registered.length : '–'}</strong>
-                        <span>Registraron entrada hoy</span>
-                    </div>
-                </article>
-
-                <article className="overview-card">
-                    <Icon name="clock" />
-                    <div>
-                        <strong>
-                            {data ? data.registered.filter(r => r.status === 'late').length : '–'}
-                        </strong>
-                        <span>Retardos hoy</span>
-                    </div>
-                </article>
-
-                <article className="overview-card">
-                    <Icon name="x" />
-                    <div>
-                        <strong>{data ? data.missing.length : '–'}</strong>
-                        <span>Sin registrar</span>
-                    </div>
-                </article>
-
-                <article
-                    className="overview-card"
-                    role="button"
-                    tabIndex={0}
+                <StatTile label="Iniciaron jornada" value={data ? registered : null} icon="check" tone="ok" />
+                <StatTile label="Retardos" value={data ? late : null} icon="clock" tone="warn" />
+                <StatTile label="Sin registrar" value={data ? missing : null} icon="alert" tone="bad" />
+                <StatTile
+                    label="Por aprobar"
+                    value={pending.data ?? null}
+                    icon="clipboard"
+                    tone="info"
                     onClick={() => onNavigate('admin-requests')}
-                    onKeyDown={e => e.key === 'Enter' && onNavigate('admin-requests')}
-                >
-                    <Icon name="alert" />
-                    <div>
-                        <strong>{pending.data ?? '–'}</strong>
-                        <span>Solicitudes por aprobar</span>
-                    </div>
-                </article>
+                />
             </section>
 
             <TodayOverview state={overview} />

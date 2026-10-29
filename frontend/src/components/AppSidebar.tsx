@@ -3,13 +3,14 @@ import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import { useBranding } from '../lib/branding'
 import { parseServerDate, ymd } from '../lib/format'
-import type { AttendanceToday, Page, Post, User } from '../lib/types'
+import type { AttendanceToday, Page, User } from '../lib/types'
 import { ActionMenu } from './ActionMenu'
 import type { MenuItem } from './ActionMenu'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
 import { Logo } from './Login/Logo'
+import { useAppEvent } from '../lib/events'
 
 type Item = { page: Page; icon: IconName; label: string }
 type Group = { label: string; items: Item[] }
@@ -66,30 +67,19 @@ const ADMIN_GROUPS: Group[] = [
 ]
 
 const MIN_ITEM_WIDTH = 68
-const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000
 
 const hhmm = (value: string) =>
   parseServerDate(value).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
 /** Contadores: comunicados sin confirmar y, para el admin, solicitudes pendientes. */
-function useNavBadges(token: string, user: User, adminView: boolean, activePage: Page) {
+function useNavBadges(token: string, user: User, adminView: boolean) {
   const [badges, setBadges] = useState<Partial<Record<Page, number>>>({})
 
   const load = useCallback(async () => {
     const next: Partial<Record<Page, number>> = {}
-    const today = ymd(new Date())
 
     try {
-      const posts = await api<Post[]>('/posts?limit=30', {}, token)
-
-      next.news = posts.filter(
-        p =>
-          p.author.id !== user.id &&
-          !p.my_response &&
-          (p.kind === 'meeting'
-            ? (p.meeting_date ?? '') >= today
-            : Date.now() - parseServerDate(p.created_at).getTime() < TWO_WEEKS)
-      ).length
+      next.news = (await api<{ count: number }>('/posts/unseen-count', {}, token)).count
     } catch {
       /* sin contador si falla */
     }
@@ -108,24 +98,26 @@ function useNavBadges(token: string, user: User, adminView: boolean, activePage:
     }
 
     setBadges(next)
-  }, [token, user.id, user.role, adminView])
+  }, [token, user.role, adminView])
+
+  useAppEvent('requests:changed', load)
+  useAppEvent('posts:changed', load)
 
   useEffect(() => {
     load()
 
-    const id = setInterval(load, 120_000)
-    window.addEventListener('focus', load)
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 30_000)
+
+    const onVisible = () => document.visibilityState === 'visible' && load()
+    document.addEventListener('visibilitychange', onVisible)
 
     return () => {
       clearInterval(id)
-      window.removeEventListener('focus', load)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [load])
-
-  // Al cambiar de página (por ejemplo, después de confirmar un comunicado) se refresca
-  useEffect(() => {
-    load()
-  }, [activePage, load])
 
   return badges
 }
@@ -188,7 +180,7 @@ export function AppSidebar({
   onLogout: () => void
 }) {
   const { branding } = useBranding()
-  const badges = useNavBadges(token, user, adminView, activePage)
+  const badges = useNavBadges(token, user, adminView)
 
   const groups = adminView ? ADMIN_GROUPS : EMPLOYEE_GROUPS
   const items = groups.flatMap(g => g.items)

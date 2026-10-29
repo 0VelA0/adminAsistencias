@@ -5,6 +5,7 @@ import { STATUS_LABEL, countWorkdays, formatDay, formatRange } from '../lib/form
 // ✅ CAMBIO 2: nuevos imports
 import { useAsync } from '../lib/useAsync'
 import { StateView } from '../components/StatusBlocks'
+import { useAppEvent, emit } from '../lib/events'
 
 type Status = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
@@ -182,6 +183,8 @@ export function AdminRequestsPanel({
         return [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     }, [items, filter])
 
+    useAppEvent('requests:changed', state.reload)
+
     return (
         <section className="dashboard-card history-card">
             <div className="section-title history-title">
@@ -307,7 +310,10 @@ export function AdminRequestsPanel({
                     review={review}
                     onClose={() => setReview(null)}
                     // ✅ CAMBIO 7: onDone ahora usa state.reload
-                    onDone={async () => { state.reload()}}
+                    onDone={async () => {
+                        state.reload()
+                        emit('requests:changed')
+                    }}
                 />
             )}
         </section>

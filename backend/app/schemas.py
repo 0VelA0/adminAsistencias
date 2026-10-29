@@ -724,6 +724,21 @@ class ReportPersonOut(BaseModel):
     late_minutes: int
     short_minutes: int = 0 
 
+class ReportDayOut(BaseModel):
+    user_id: int
+    day: date
+    key: str
+    incomplete: bool = False
+
+
+class ReportIncidentOut(BaseModel):
+    user_id: int
+    full_name: str
+    employee_code: str | None = None
+    day: date
+    key: str
+    minutes: int | None = None
+    note: str | None = None
 
 class ReportPreviewOut(BaseModel):
     start: date
@@ -733,6 +748,8 @@ class ReportPreviewOut(BaseModel):
     totals: dict[str, int]
     hours: float
     late_minutes: int
+    days: list[ReportDayOut] = []
+    incidents: list[ReportIncidentOut] = []
 
 class PostIn(BaseModel):
     kind: str
@@ -797,6 +814,10 @@ class PostOut(BaseModel):
     booking_id: int | None = None
     audience_size: int
     can_manage: bool
+    seen: bool = False
+    archived: bool = False        # archivado para este usuario
+    admin_archived: bool = False  # archivado por un admin
+    finished: bool = False        # reunión ya terminada
 
 
 class PostsMetaOut(BaseModel):
@@ -832,5 +853,17 @@ class CalendarEventOut(BaseModel):
     end_time: str | None = None
     page: str
     pending: bool = False
+
+class SeenIn(BaseModel):
+    ids: list[int] = Field(max_length=200)
+
+
+class FeedIn(BaseModel):
+    in_feed: bool
+
+
+class ArchiveIn(BaseModel):
+    archived: bool
+
     
 TokenOut.model_rebuild()
