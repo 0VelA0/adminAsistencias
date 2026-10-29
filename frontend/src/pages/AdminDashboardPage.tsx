@@ -305,7 +305,7 @@ function AdminAttendance({ token, refresh }: { token: string; refresh: number })
 
                     {pendingExits.length > 6 && (
                         <button type="button" className="link pending-exits-more" onClick={() => setShowAllExits(v => !v)}>
-                            {showAllExits ? 'Ver menos' : `Ver las ${pendingExits.length} pendientes`}
+                            {showAllExits ? 'Ver menos' : `Ver todas`}
                         </button>
                     )}
                 </section>
