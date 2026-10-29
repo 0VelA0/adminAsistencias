@@ -127,12 +127,6 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
 
                         return (
                             <>
-                                {isAdmin && unassigned > 0 && (
-                                    <p className="notice org-hint">
-                                        {unassigned === 1 ? '1 persona aún no tiene' : `${unassigned} personas aún no tienen`} jefe
-                                        directo asignado. Si alguna es cabeza de la organización, márcala así en su perfil laboral.
-                                    </p>
-                                )}
 
                                 {tab === 'org' ? (
                                     <OrgChart people={list} focus={focus} onSelect={p => setSelectedId(p.id)} />
