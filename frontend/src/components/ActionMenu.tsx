@@ -19,14 +19,17 @@ export function ActionMenu({
     items,
     label,
     children,
-    triggerClassName,
     align = 'right',
+    trigger,
+    triggerClassName = 'menu-trigger',
 }: {
     items: MenuItem[]
     label: string
     children?: React.ReactNode
     triggerClassName?: string
     align?: 'left' | 'right'
+    trigger?: React.ReactNode
+    
 }) {
     const [open, setOpen] = useState(false)
     const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null)
@@ -104,13 +107,13 @@ export function ActionMenu({
             <button
                 ref={buttonRef}
                 type="button"
-                className={`${children ? triggerClassName ?? '' : 'menu-trigger'} ${open ? 'open' : ''}`}
+                className={`${triggerClassName} ${open ? 'open' : ''}`}
                 aria-label={label}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen(o => !o)}
             >
-                {children ?? <Icon name="more" size={18} />}
+                {trigger ?? <Icon name="more" size={18} />}
             </button>
 
             {open &&

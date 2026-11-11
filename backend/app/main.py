@@ -16,6 +16,10 @@ import base64
 import re
 from dataclasses import dataclass, field
 from io import BytesIO
+import asyncio
+from fastapi import Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -161,6 +165,9 @@ ATTENDANCE_COLUMNS = {
 }
 
 SHORT_SESSION_HOURS = 12
+
+MODE_LABEL = {"onsite": "Presencial", "hybrid": "Híbrido", "remote": "Remoto"}
+SCHEDULE_LABEL = {"fixed": "Fija", "flexible": "Flexible"}
 
 # =========================================================
 # CORS
@@ -3651,6 +3658,12 @@ def delete_user(
     if confirm.strip().lower() != target.email.lower():
         raise HTTPException(status_code=400, detail="El correo de confirmación no coincide.")
 
+    if target.is_active:
+        raise HTTPException(
+            status_code=409,
+            detail="Primero desactiva la cuenta. Solo se pueden eliminar cuentas desactivadas.",
+        )
+
     purge_user(db, target)
     db.commit()
 
@@ -4706,6 +4719,75 @@ def report_preview(
         days=days_out,
         incidents=incidents_out,
     )
+
+@app.get("/users/export")
+def export_users(
+    status: str = "all",
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    everyone = db.scalars(select(User).order_by(User.full_name)).all()
+    names = {u.id: u.full_name for u in everyone}
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
+
+    users = [
+        u for u in everyone
+        if status == "all" or (status == "active") == bool(u.is_active)
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Usuarios"
+
+    headers = [
+        "Código", "Nombre", "Correo", "Rol", "Estado", "Puesto", "Área",
+        "Jefe directo", "Fecha de ingreso", "Modalidad", "Jornada", "Registra asistencia",
+    ]
+    ws.append(headers)
+
+    for u in users:
+        p = profiles.get(u.id)
+
+        ws.append([
+            (p.employee_code if p else None) or "",
+            u.full_name,
+            u.email,
+            "Administrador" if u.role == "admin" else "Empleado",
+            "Activo" if u.is_active else "Inactivo",
+            (p.position if p else None) or "",
+            (p.department if p else None) or "",
+            names.get(p.manager_id, "") if p and p.manager_id else "",
+            u.hire_date,
+            MODE_LABEL.get(p.work_mode, p.work_mode) if p and p.work_mode else "",
+            SCHEDULE_LABEL.get(p.schedule_type, p.schedule_type) if p and p.schedule_type else "",
+            "No" if p and p.tracks_attendance is False else "Sí",
+        ])
+
+    header_fill = PatternFill("solid", fgColor="1F3B63")
+
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(vertical="center")
+
+    ws.row_dimensions[1].height = 24
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+    for row in ws.iter_rows(min_row=2, min_col=9, max_col=9):
+        row[0].number_format = "DD/MM/YYYY"
+
+    for column in ws.columns:
+        width = max(len(str(c.value or "")) for c in column)
+        ws.column_dimensions[column[0].column_letter].width = min(max(width + 3, 10), 42)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+
+    return {
+        "filename": f"usuarios_{get_work_date():%Y-%m-%d}.xlsx",
+        "content": base64.b64encode(buffer.getvalue()).decode(),
+    }
 
 
 @app.post("/reports/attendance/export")
@@ -5942,6 +6024,95 @@ def change_office_day(
     db.commit()
 
     return office_days_out(db, user, schedule, 21)
+
+
+# =========================================================
+# TIEMPO REAL (Server-Sent Events)
+# =========================================================
+
+REALTIME_INTERVAL = 3      # segundos entre revisiones
+REALTIME_LIFETIME = 600    # se renueva cada 10 min para revalidar la sesión
+
+
+def realtime_snapshot(user_id: int, is_admin: bool) -> dict[str, tuple]:
+    """Huella de lo que le importa a este usuario. Si cambia, se le avisa."""
+
+    def own(model):
+        return [] if is_admin else [model.user_id == user_id]
+
+    with SessionLocal() as db:
+        return {
+            "notifications": (
+                db.scalar(select(func.max(Notification.id)).where(Notification.user_id == user_id)),
+                db.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(
+                        Notification.user_id == user_id,
+                        Notification.read_at.is_(None),
+                        Notification.dismissed_at.is_(None),
+                    )
+                ),
+            ),
+            "requests": tuple(
+                (
+                    db.scalar(select(func.count()).select_from(model).where(*own(model), model.status == "pending")),
+                    db.scalar(select(func.max(model.id)).where(*own(model))),
+                )
+                for model in (VacationRequest, PermissionRequest)
+            ),
+            "posts": (
+                db.scalar(select(func.max(Post.updated_at))),
+                db.scalar(select(func.count()).select_from(Post)),
+                db.scalar(select(func.count()).select_from(PostResponse)),
+            ),
+            "attendance": (
+                db.scalar(select(func.max(AttendanceRecord.id)).where(*own(AttendanceRecord))),
+                db.scalar(select(func.count()).select_from(AttendanceRecord).where(*own(AttendanceRecord))),
+            ),
+        }
+
+
+@app.get("/events/stream")
+async def events_stream(
+    request: Request,
+    user: User = Depends(authenticated_user),
+):
+    user_id, is_admin = user.id, user.role == "admin"
+
+    async def stream():
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + REALTIME_LIFETIME
+        last = await run_in_threadpool(realtime_snapshot, user_id, is_admin)
+        quiet = 0
+
+        yield "retry: 5000\n\n"
+
+        while loop.time() < deadline and not await request.is_disconnected():
+            await asyncio.sleep(REALTIME_INTERVAL)
+
+            try:
+                current = await run_in_threadpool(realtime_snapshot, user_id, is_admin)
+            except Exception:
+                continue
+
+            changed = [key for key, value in current.items() if value != last.get(key)]
+            last = current
+
+            for key in changed:
+                yield f"event: {key}\ndata: {{}}\n\n"
+
+            quiet = 0 if changed else quiet + REALTIME_INTERVAL
+
+            if quiet >= 15:  # latido para que los proxies no cierren la conexión
+                yield ": ping\n\n"
+                quiet = 0
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 # =========================================================
 # FRONTEND ESTÁTICO

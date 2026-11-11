@@ -26,9 +26,11 @@ type Credentials = {
 export function UsersPage({
     token,
     currentUser,
+    onShowInChart,
 }: {
     token: string
-    currentUser: User
+    currentUser: User,
+    onShowInChart?: (userId: number) => void
 }) {
     const list = useAsync(() => api<User[]>('/users', {}, token), [token])
     const users = list.data ?? []
@@ -107,6 +109,34 @@ export function UsersPage({
     const active = users.filter(u => u.is_active).length
     const admins = users.filter(u => u.role === 'admin').length
 
+    const [exporting, setExporting] = useState(false)
+
+    const exportUsers = async () => {
+        setExporting(true)
+
+        try {
+            const file = await api<{ filename: string; content: string }>(`/users/export?status=${filter}`, {}, token)
+            const bytes = Uint8Array.from(atob(file.content), c => c.charCodeAt(0))
+
+            const url = URL.createObjectURL(
+                new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            )
+
+            const link = document.createElement('a')
+            link.href = url
+            link.download = file.filename
+            link.click()
+            URL.revokeObjectURL(url)
+
+            toast.success('Lista de usuarios exportada.')
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'No se pudo exportar.')
+        } finally {
+            setExporting(false)
+        }
+    }
+
+
     return (
         <div className="page-content">
             <PageHeader
@@ -115,9 +145,35 @@ export function UsersPage({
                 description="Crea cuentas y gestiona el acceso del equipo."
                 actions={
                     <>
-                        <button type="button" className="secondary" onClick={() => setImporting(true)}>
-                            <Icon name="upload" size={16} /> Importar desde Excel
-                        </button>
+                        <ActionMenu
+                            label="Más acciones"
+                            triggerClassName="secondary menu-trigger-button"
+                            trigger={
+                                <>
+                                    {exporting ? <span className="spinner" /> : <Icon name="more" size={16} />}
+                                    Más acciones
+                                </>
+                            }
+                            items={[
+                                {
+                                    label: 'Importar desde Excel',
+                                    hint: 'Da de alta a varias personas a la vez',
+                                    icon: 'upload',
+                                    onSelect: () => setImporting(true),
+                                },
+                                {
+                                    label: 'Exportar a Excel',
+                                    hint:
+                                        filter === 'all'
+                                            ? 'Todos los usuarios con su perfil laboral'
+                                            : `Solo los ${filter === 'active' ? 'activos' : 'inactivos'} (filtro actual)`,
+                                    icon: 'download',
+                                    disabled: exporting,
+                                    onSelect: exportUsers,
+                                },
+                            ]}
+                        />
+
                         <button type="button" onClick={() => setShowCreate(true)}>
                             <Icon name="plus" size={16} /> Nuevo usuario
                         </button>
@@ -267,6 +323,13 @@ export function UsersPage({
                                                                             onSelect: () => setProfileFor(user.id),
                                                                         },
                                                                         {
+                                                                            label: 'Ver en el organigrama',
+                                                                            hint: 'Ubica a la persona y su equipo',
+                                                                            icon: 'org',
+                                                                            disabled: !user.is_active,
+                                                                            onSelect: () => onShowInChart?.(user.id),
+                                                                        },
+                                                                        {
                                                                             label: 'Editar cuenta',
                                                                             hint: 'Nombre, rol y contraseña',
                                                                             icon: 'edit',
@@ -281,9 +344,10 @@ export function UsersPage({
                                                                         },
                                                                         {
                                                                             label: 'Eliminar',
-                                                                            hint: 'Borra a la persona y todo su historial',
+                                                                            hint: user.is_active ? 'Primero desactiva la cuenta' : 'Borra a la persona y todo su historial',
                                                                             icon: 'trash',
                                                                             danger: true,
+                                                                            disabled: user.is_active,
                                                                             dividerBefore: true,
                                                                             onSelect: () => setDeleting(user),
                                                                         },

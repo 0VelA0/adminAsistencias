@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export type AppEvent = 'requests:changed' | 'posts:changed' | 'attendance:changed'
+export type AppEvent = 'requests:changed' | 'posts:changed' | 'attendance:changed' | 'notifications:changed'
 
 const bus = new EventTarget()
 
@@ -8,9 +8,9 @@ const bus = new EventTarget()
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('app-events') : null
 channel?.addEventListener('message', e => bus.dispatchEvent(new Event(e.data as AppEvent)))
 
-export function emit(event: AppEvent) {
+export function emit(event: AppEvent, { broadcast = true }: { broadcast?: boolean } = {}) {
     bus.dispatchEvent(new Event(event))
-    channel?.postMessage(event)
+    if (broadcast) channel?.postMessage(event)
 }
 
 export function useAppEvent(event: AppEvent, handler: () => void) {
@@ -23,3 +23,4 @@ export function useAppEvent(event: AppEvent, handler: () => void) {
         return () => bus.removeEventListener(event, listener)
     }, [event])
 }
+

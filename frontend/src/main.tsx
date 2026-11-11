@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrandingProvider } from './lib/branding'
+import { startRealtime } from './lib/realtime'
 
 import { api } from './lib/api'
 
@@ -248,6 +249,18 @@ function App() {
     )
 
 
+    useEffect(() => {
+        if (!token) return
+        return startRealtime(token)
+    }, [token])
+
+    const [orgFocus, setOrgFocus] = useState<{ id: number; key: number } | null>(null)
+
+    const showInOrgChart = (userId: number) => {
+        setOrgFocus({ id: userId, key: Date.now() })
+        setActivePage('team')
+    }
+
     if (!token) {
         return (
             <LoginPage
@@ -323,7 +336,7 @@ function App() {
 
                             {activePage === 'admin-holidays' && <HolidaysPage token={token} onChanged={loadHolidays} />}
 
-                            {activePage === 'team' && <TeamPage token={token} user={user} />}
+                            {activePage === 'team' && <TeamPage token={token} user={user} focusRequest={orgFocus} />}
 
                             {activePage === 'admin-reports' && <ReportsPage token={token} />}
 
@@ -394,12 +407,12 @@ function App() {
                             />
                         )}
                         {activePage === 'users' && user.role === 'admin' && (
-                            <UsersPage token={token} currentUser={user} />
+                            <UsersPage token={token} currentUser={user} onShowInChart={showInOrgChart} />
                         )}
                        
                         {activePage === 'spaces' && <SpacesPage token={token} user={user} />}
 
-                        {activePage === 'team' && <TeamPage token={token} user={user} />}
+                        {activePage === 'team' && <TeamPage token={token} user={user} focusRequest={orgFocus}/>}
 
                         {activePage === 'news' && <NewsPage token={token} user={user} />}
                         

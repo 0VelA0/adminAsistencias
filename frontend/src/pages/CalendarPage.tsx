@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon'
 import type { IconName } from '../components/Icon'
 import { StateView } from '../components/StatusBlocks'
 import { PageHeader } from '../components/PageHeader'
+import { MonthPicker } from '../components/monthPicker'
 
 const TYPES: Record<CalendarEvent['type'], { label: string; icon: IconName }> = {
     meeting: { label: 'Reunión', icon: 'megaphone' },
@@ -78,16 +79,24 @@ export function CalendarPage({
     const [from, to] =
         view === 'month' ? [ymd(days[0]), ymd(days[41])] : [today, ymd(addDays(new Date(), 45))]
 
+    const rangeKey = `${from}|${to}|${team}`
+
     const events = useAsync(
-        () => api<CalendarEvent[]>(`/calendar?start=${from}&end=${to}&team=${team}`, {}, token),
-        [token, from, to, team]
+        async () => ({
+            key: rangeKey,
+            items: await api<CalendarEvent[]>(`/calendar?start=${from}&end=${to}&team=${team}`, {}, token),
+        }),
+        [token, rangeKey]
     )
+
+    const ready = events.data?.key === rangeKey
+    const list = ready ? events.data!.items : []
 
     // Un evento de varios días aparece en cada uno de sus días
     const byDay = useMemo(() => {
         const map = new Map<string, CalendarEvent[]>()
 
-        for (const event of events.data ?? []) {
+        for (const event of list) {
             const last = event.end_date < to ? event.end_date : to
 
             for (let d = toDate(event.start_date > from ? event.start_date : from); ymd(d) <= last; d = addDays(d, 1)) {
@@ -97,7 +106,9 @@ export function CalendarPage({
         }
 
         return map
-    }, [events.data, from, to])
+    }, [list, from, to])
+
+    const thisMonth = cursor.getFullYear() === new Date().getFullYear() && cursor.getMonth() === new Date().getMonth()
 
     const shiftMonth = (delta: number) => setCursor(c => new Date(c.getFullYear(), c.getMonth() + delta, 1))
 
@@ -129,36 +140,35 @@ export function CalendarPage({
 
             <section className="dashboard-card">
                 <div className="calendar-toolbar">
-                    {view === 'month' ? (
-                        <div className="date-nav">
-                            <button type="button" className="secondary compact" aria-label="Mes anterior" onClick={() => shiftMonth(-1)}>
-                                <Icon name="left" size={16} />
-                            </button>
-                            <strong className="calendar-title cap">
-                                {cursor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-                            </strong>
-                            <button type="button" className="secondary compact" aria-label="Mes siguiente" onClick={() => shiftMonth(1)}>
-                                <Icon name="right" size={16} />
-                            </button>
-                            <button
-                                type="button"
-                                className="secondary compact"
-                                onClick={() => {
-                                    const d = new Date()
-                                    setCursor(new Date(d.getFullYear(), d.getMonth(), 1))
-                                }}
-                            >
-                                Hoy
-                            </button>
-                        </div>
-                    ) : (
-                        <strong className="calendar-title">Próximos 45 días</strong>
-                    )}
+                    <div className="calendar-nav">
+                        {view === 'month' ? (
+                            <>
+                                <MonthPicker value={cursor} onChange={setCursor} />
+
+                                <button
+                                    type="button"
+                                    className="secondary today-btn"
+                                    disabled={thisMonth}
+                                    onClick={() => {
+                                        const d = new Date()
+                                        setCursor(new Date(d.getFullYear(), d.getMonth(), 1))
+                                    }}
+                                >
+                                    <Icon name="calendar" size={14} /> Hoy
+                                </button>
+                            </>
+                        ) : (
+                            <strong className="calendar-title">Próximos 45 días</strong>
+                        )}
+                    </div>
 
                     {user.role === 'admin' && (
-                        <label className="check-row">
-                            <input type="checkbox" checked={team} onChange={e => setTeam(e.target.checked)} />
-                            Mostrar ausencias del equipo
+                        <label className="switch-inline">
+                            <span>Ausencias del equipo</span>
+                            <span className="switch">
+                                <input type="checkbox" checked={team} onChange={e => setTeam(e.target.checked)} />
+                                <span />
+                            </span>
                         </label>
                     )}
                 </div>
@@ -175,7 +185,12 @@ export function CalendarPage({
 
                 <StateView state={events}>
                     {() =>
-                        view === 'month' ? (
+                        !ready ? (
+                            <div className="calendar-loading" role="status">
+                                <span className="spinner" />
+                                <span>Cargando tu calendario…</span>
+                            </div>
+                        ) : view === 'month' ? (
                             <div className="month-grid" key={from}>
                                 {WEEK_HEAD.map(day => (
                                     <div key={day} className="month-head">{day}</div>
@@ -210,7 +225,11 @@ export function CalendarPage({
                                 })}
                             </div>
                         ) : agendaDays.length === 0 ? (
-                            <p className="empty">No tienes nada agendado en los próximos días.</p>
+                            <div className="empty-state">
+                                <Icon name="calendar" size={30} />
+                                <strong>Nada agendado en los próximos 45 días</strong>
+                                <p className="muted">Tus reuniones, reservas y ausencias aparecerán aquí.</p>
+                            </div>
                         ) : (
                             <div className="agenda">
                                 {agendaDays.map((key, i) => (

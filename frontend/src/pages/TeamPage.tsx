@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { deptColors, seniority, uniqueSorted } from '../lib/people'
 import { useAsync } from '../lib/useAsync'
@@ -69,7 +69,7 @@ function Directory({ people, onSelect }: { people: Person[]; onSelect: (p: Perso
     )
 }
 
-export function TeamPage({ token, user }: { token: string; user: User }) {
+export function TeamPage({ token, user, focusRequest = null }: { token: string; user: User; focusRequest?: {id: number; key: number} | null }) {
     const people = useAsync(() => api<Person[]>('/people', {}, token), [token])
     const isAdmin = user.role === 'admin'
 
@@ -81,6 +81,13 @@ export function TeamPage({ token, user }: { token: string; user: User }) {
     
 
     const selected = people.data?.find(p => p.id === selectedId) ?? null
+
+    useEffect(() => {
+        if (!focusRequest) return
+        setTab('org')
+        setSelectedId(null)
+        setFocus(focusRequest)
+    }, [focusRequest])
 
     return (
         <div className="page-content">

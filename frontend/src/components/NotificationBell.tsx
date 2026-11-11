@@ -4,6 +4,7 @@ import { timeAgo } from '../lib/format'
 import type { AppNotification, NotificationsData, Page } from '../lib/types'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
+import {emit, useAppEvent} from '../lib/events'
 
 const KIND_ICON: Record<string, IconName> = {
     missing_exit: 'alert',
@@ -152,6 +153,12 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
         return () => document.removeEventListener('mousedown', close)
     }, [open])
 
+    const [ringing, setRinging] = useState(false)
+    const lastUnread = useRef(0)
+
+    useAppEvent('notifications:changed', load)
+
+
     const openItem = async (item: AppNotification) => {
         setOpen(false)
 
@@ -185,11 +192,26 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
         await api('/notifications', { method: 'DELETE' }, token).catch(load)
     }
 
+    emit('notifications:changed')
+
+
+// Se sacude cuando aumentan las no leídas
+    useEffect(() => {
+        if (data.unread > lastUnread.current) {
+            setRinging(true)
+            const id = setTimeout(() => setRinging(false), 900)
+            lastUnread.current = data.unread
+            return () => clearTimeout(id)
+        }
+
+        lastUnread.current = data.unread
+    }, [data.unread])
+
     return (
         <div className="bell-wrap" ref={wrapRef}>
             <button
                 type="button"
-                className="secondary compact bell"
+                className={`secondary compact bell ${ringing ? 'ringing' : ''}`}
                 aria-label={`Notificaciones${data.unread ? `, ${data.unread} sin leer` : ''}`}
                 onClick={() => {
                     setOpen(o => !o)
