@@ -6184,14 +6184,35 @@ button:active:not(:disabled) {
   cursor: default;
 }
 
-.switch-inline {
+.calendar-legend {
+  align-items: center;
+}
+
+.legend-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 600;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px dashed var(--field-line);
+  border-radius: 999px;
+  background: transparent;
   color: var(--muted);
-  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+
+.legend-toggle:hover {
+  border-color: var(--event-color);
+  color: var(--text);
+}
+
+.legend-toggle.on {
+  border-style: solid;
+  border-color: var(--event-color);
+  background: color-mix(in srgb, var(--event-color) 14%, transparent);
+  color: color-mix(in srgb, var(--event-color) 75%, #000);
 }
 
 .calendar-loading {

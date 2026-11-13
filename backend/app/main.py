@@ -5,6 +5,8 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import jwt
+import time
+import logging
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -168,6 +170,8 @@ SHORT_SESSION_HOURS = 12
 
 MODE_LABEL = {"onsite": "Presencial", "hybrid": "Híbrido", "remote": "Remoto"}
 SCHEDULE_LABEL = {"fixed": "Fija", "flexible": "Flexible"}
+
+log = logging.getLogger("uvicorn.error")
 
 # =========================================================
 # CORS
@@ -3156,6 +3160,11 @@ def sync_weekly_summary(
         key
     )
 
+
+SYNC_EVERY = 60  # segundos
+_last_sync: dict[int, float] = {}
+
+
 @app.get(
     "/notifications",
     response_model=NotificationsOut,
@@ -3164,29 +3173,34 @@ def list_notifications(
     user: User = Depends(authenticated_user),
     db: Session = Depends(get_db),
 ):
+    now_mono = time.monotonic()
 
-    prefs = get_or_create_preferences(db, user.id)
+    if now_mono - _last_sync.get(user.id, 0) >= SYNC_EVERY:
+        _last_sync[user.id] = now_mono
+        prefs = get_or_create_preferences(db, user.id)
 
-    try:
-        sync_attendance_notifications(db, user, prefs)
-        sync_weekly_summary(db, user, prefs)
-        sync_meeting_reminders(db, user)
-        db.commit()
-    except Exception:
-        db.rollback()
+        try:
+            sync_attendance_notifications(db, user, prefs)
+            sync_weekly_summary(db, user, prefs)
+            sync_meeting_reminders(db, user)
+            db.commit()
+        except Exception:
+            db.rollback()
 
-    db.execute(
-        delete(Notification).where(
-            Notification.user_id == user.id,
-            Notification.created_at < datetime.now(timezone.utc) - timedelta(days=60),
+        db.execute(
+            delete(Notification).where(
+                Notification.user_id == user.id,
+                Notification.created_at < datetime.now(timezone.utc) - timedelta(days=60),
+            )
         )
-    )
-    db.commit()
+        db.commit()
 
     items = db.scalars(
         select(Notification)
-        .where(Notification.user_id == user.id,
-               Notification.dismissed_at.is_(None),)
+        .where(
+            Notification.user_id == user.id,
+            Notification.dismissed_at.is_(None),
+        )
         .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(30)
     ).all()
@@ -6083,7 +6097,13 @@ async def events_stream(
     async def stream():
         loop = asyncio.get_running_loop()
         deadline = loop.time() + REALTIME_LIFETIME
-        last = await run_in_threadpool(realtime_snapshot, user_id, is_admin)
+
+        try:
+            last = await run_in_threadpool(realtime_snapshot, user_id, is_admin)
+        except Exception:
+            log.exception("Tiempo real: no se pudo leer el estado inicial")
+            return
+
         quiet = 0
 
         yield "retry: 5000\n\n"
@@ -6094,6 +6114,7 @@ async def events_stream(
             try:
                 current = await run_in_threadpool(realtime_snapshot, user_id, is_admin)
             except Exception:
+                log.exception("Tiempo real: error al revisar cambios")
                 continue
 
             changed = [key for key, value in current.items() if value != last.get(key)]

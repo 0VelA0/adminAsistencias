@@ -162,15 +162,28 @@ export function CalendarPage({
                         )}
                     </div>
 
-                    {user.role === 'admin' && (
-                        <label className="switch-inline">
-                            <span>Ausencias del equipo</span>
-                            <span className="switch">
-                                <input type="checkbox" checked={team} onChange={e => setTeam(e.target.checked)} />
-                                <span />
-                            </span>
-                        </label>
-                    )}
+                    <div className="calendar-legend">
+                        {Object.entries(TYPES)
+                            .filter(([type]) => type !== 'team_absence')
+                            .map(([type, info]) => (
+                                <span key={type} className={`legend-item ${type}`}>
+                                    <i /> {info.label}
+                                </span>
+                            ))}
+
+                        {user.role === 'admin' && (
+                            <button
+                                type="button"
+                                className={`legend-toggle team_absence ${team ? 'on' : ''}`}
+                                aria-pressed={team}
+                                title={team ? 'Ocultar las ausencias del equipo' : 'Mostrar las vacaciones y permisos del equipo'}
+                                onClick={() => setTeam(t => !t)}
+                            >
+                                <Icon name={team ? 'check' : 'plus'} size={12} />
+                                Ausencias del equipo
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="calendar-legend">

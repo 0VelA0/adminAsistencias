@@ -15,11 +15,13 @@ export function startRealtime(token: string) {
     let stopped = false
     let controller: AbortController | null = null
     let delay = 2000
-    let reconnecting = false
+    let lastCatchUp = Date.now()
 
     const connect = async () => {
         if (stopped) return
+
         controller = new AbortController()
+        const startedAt = Date.now()
 
         try {
             const response = await fetch(`${api}/events/stream`, {
@@ -27,11 +29,13 @@ export function startRealtime(token: string) {
                 signal: controller.signal,
             })
 
-            if (response.status === 401 || response.status === 403) return // sesión vencida
+            if (response.status === 401 || response.status === 403) return
             if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
 
-            delay = 2000
-            if (reconnecting) emitAll() // se pone al día con lo que pasó mientras no hubo conexión
+            if (Date.now() - lastCatchUp > 30_000) {
+                lastCatchUp = Date.now()
+                emitAll()
+            }
 
             const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
             let buffer = ''
@@ -47,12 +51,7 @@ export function startRealtime(token: string) {
                     const block = buffer.slice(0, cut)
                     buffer = buffer.slice(cut + 2)
 
-                    const name = block
-                        .split('\n')
-                        .find(line => line.startsWith('event:'))
-                        ?.slice(6)
-                        .trim()
-
+                    const name = block.split('\n').find(l => l.startsWith('event:'))?.slice(6).trim()
                     if (name && EVENTS[name]) emit(EVENTS[name], { broadcast: false })
                 }
             }
@@ -60,11 +59,11 @@ export function startRealtime(token: string) {
             if (stopped) return
         }
 
-        if (!stopped) {
-            reconnecting = true
-            setTimeout(connect, delay)
-            delay = Math.min(delay * 2, 30_000)
-        }
+        if (stopped) return
+
+        // Solo una conexión que duró es "buena": si se cayó enseguida, espera más cada vez
+        delay = Date.now() - startedAt > 10_000 ? 2000 : Math.min(delay * 2, 60_000)
+        setTimeout(connect, delay)
     }
 
     connect()

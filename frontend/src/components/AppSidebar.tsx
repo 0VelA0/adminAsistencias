@@ -11,6 +11,7 @@ import { Icon } from './Icon'
 import type { IconName } from './Icon'
 import { Logo } from './Login/Logo'
 import { useAppEvent } from '../lib/events'
+import { useCoalesced } from '../lib/useCoalesced'
 
 type Item = { page: Page; icon: IconName; label: string }
 type Group = { label: string; items: Item[] }
@@ -75,7 +76,7 @@ const hhmm = (value: string) =>
 function useNavBadges(token: string, user: User, adminView: boolean) {
   const [badges, setBadges] = useState<Partial<Record<Page, number>>>({})
 
-  const load = useCallback(async () => {
+  const load = useCoalesced(async () => {
     const next: Partial<Record<Page, number>> = {}
 
     try {
@@ -98,7 +99,7 @@ function useNavBadges(token: string, user: User, adminView: boolean) {
     }
 
     setBadges(next)
-  }, [token, user.role, adminView])
+  }, )
 
   useAppEvent('requests:changed', load)
   useAppEvent('posts:changed', load)

@@ -8,8 +8,11 @@ const bus = new EventTarget()
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('app-events') : null
 channel?.addEventListener('message', e => bus.dispatchEvent(new Event(e.data as AppEvent)))
 
-export function emit(event: AppEvent, { broadcast = true }: { broadcast?: boolean } = {}) {
-    bus.dispatchEvent(new Event(event))
+export function emit(
+    event: AppEvent,
+    { broadcast = true, local = true }: { broadcast?: boolean; local?: boolean } = {}
+) {
+    if (local) bus.dispatchEvent(new Event(event))
     if (broadcast) channel?.postMessage(event)
 }
 

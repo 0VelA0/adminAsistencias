@@ -5,6 +5,7 @@ import type { AppNotification, NotificationsData, Page } from '../lib/types'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
 import {emit, useAppEvent} from '../lib/events'
+import { useCoalesced } from '../lib/useCoalesced'
 
 const KIND_ICON: Record<string, IconName> = {
     missing_exit: 'alert',
@@ -123,24 +124,46 @@ function NotificationRow({
 export function NotificationBell({ token, onNavigate }: { token: string; onNavigate: (page: Page) => void }) {
     const [open, setOpen] = useState(false)
     const [data, setData] = useState<NotificationsData>({ items: [], unread: 0 })
+    const [ringing, setRinging] = useState(false)
     const wrapRef = useRef<HTMLDivElement>(null)
+    const lastUnread = useRef(0)
 
-    const load = useCallback(
-        () => api<NotificationsData>('/notifications', {}, token).then(setData).catch(() => undefined),
-        [token]
+    // Única forma de pedir notificaciones: con freno y sin peticiones simultáneas.
+    // Importante: aquí NO se hace emit(), o se vuelve a provocar un bucle.
+    const load = useCoalesced(() =>
+        api<NotificationsData>('/notifications', {}, token).then(setData)
     )
 
+    useAppEvent('notifications:changed', load)
+
+    // Carga inicial y respaldo cada 60 s, solo con la pestaña visible
     useEffect(() => {
         load()
 
-        const id = setInterval(load, 60_000)
-        window.addEventListener('focus', load)
+        const id = setInterval(() => {
+            if (document.visibilityState === 'visible') load()
+        }, 60_000)
+
+        const onVisible = () => document.visibilityState === 'visible' && load()
+        document.addEventListener('visibilitychange', onVisible)
 
         return () => {
             clearInterval(id)
-            window.removeEventListener('focus', load)
+            document.removeEventListener('visibilitychange', onVisible)
         }
     }, [load])
+
+    // La campana se sacude cuando llegan notificaciones nuevas
+    useEffect(() => {
+        if (data.unread > lastUnread.current) {
+            setRinging(true)
+            const id = setTimeout(() => setRinging(false), 900)
+            lastUnread.current = data.unread
+            return () => clearTimeout(id)
+        }
+
+        lastUnread.current = data.unread
+    }, [data.unread])
 
     useEffect(() => {
         if (!open) return
@@ -153,36 +176,42 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
         return () => document.removeEventListener('mousedown', close)
     }, [open])
 
-    const [ringing, setRinging] = useState(false)
-    const lastUnread = useRef(0)
-
-    useAppEvent('notifications:changed', load)
-
+    // Avisa a tus otras pestañas (no a esta: aquí ya actualizamos el estado)
+    const syncOtherTabs = () => emit('notifications:changed', { broadcast: true, local: false })
 
     const openItem = async (item: AppNotification) => {
         setOpen(false)
 
         if (!item.read_at) {
-            await api(`/notifications/${item.id}/read`, { method: 'POST' }, token).catch(() => undefined)
-            load()
+            setData(current => ({
+                items: current.items.map(n => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)),
+                unread: Math.max(0, current.unread - 1),
+            }))
+
+            await api(`/notifications/${item.id}/read`, { method: 'POST' }, token).catch(load)
+            syncOtherTabs()
         }
 
         onNavigate(item.page)
     }
 
-    // Se quita de la lista al momento; si el servidor falla, se recarga
     const dismiss = (item: AppNotification) => {
         setData(current => ({
             items: current.items.filter(n => n.id !== item.id),
             unread: current.unread - (item.read_at ? 0 : 1),
         }))
 
-        api(`/notifications/${item.id}`, { method: 'DELETE' }, token).catch(load)
+        api(`/notifications/${item.id}`, { method: 'DELETE' }, token).then(syncOtherTabs).catch(load)
     }
 
     const readAll = async () => {
-        await api('/notifications/read-all', { method: 'POST' }, token).catch(() => undefined)
-        load()
+        setData(current => ({
+            items: current.items.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })),
+            unread: 0,
+        }))
+
+        await api('/notifications/read-all', { method: 'POST' }, token).catch(load)
+        syncOtherTabs()
     }
 
     const clearAll = async () => {
@@ -190,22 +219,8 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
 
         setData({ items: [], unread: 0 })
         await api('/notifications', { method: 'DELETE' }, token).catch(load)
+        syncOtherTabs()
     }
-
-    emit('notifications:changed')
-
-
-// Se sacude cuando aumentan las no leídas
-    useEffect(() => {
-        if (data.unread > lastUnread.current) {
-            setRinging(true)
-            const id = setTimeout(() => setRinging(false), 900)
-            lastUnread.current = data.unread
-            return () => clearTimeout(id)
-        }
-
-        lastUnread.current = data.unread
-    }, [data.unread])
 
     return (
         <div className="bell-wrap" ref={wrapRef}>
@@ -257,6 +272,7 @@ export function NotificationBell({ token, onNavigate }: { token: string; onNavig
 
                 </div>
             )}
+
         </div>
     )
 }
