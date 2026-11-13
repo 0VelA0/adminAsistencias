@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import { useBranding } from '../lib/branding'
 import { parseServerDate, ymd } from '../lib/format'
-import type { AttendanceToday, Page, User } from '../lib/types'
+import type { AttendanceToday, Page, User, Person } from '../lib/types'
 import { ActionMenu } from './ActionMenu'
 import type { MenuItem } from './ActionMenu'
 import { Avatar } from './Avatar'
@@ -12,6 +12,8 @@ import type { IconName } from './Icon'
 import { Logo } from './Login/Logo'
 import { useAppEvent } from '../lib/events'
 import { useCoalesced } from '../lib/useCoalesced'
+import { useAsync } from '../lib/useAsync'
+
 
 type Item = { page: Page; icon: IconName; label: string }
 type Group = { label: string; items: Item[] }
@@ -193,6 +195,10 @@ export function AppSidebar({
   const [moreOpen, setMoreOpen] = useState(false)
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null)
   const [tip, setTip] = useState<{ text: string; top: number } | null>(null)
+  const people = useAsync(() => api<Person[]>('/people', {}, token), [token])
+  const position = people.data?.find(p => p.id === user.id)?.position
+
+  const roleLabel = user.role === 'admin' ? 'Administrador' : position || 'Empleado'
 
   // ---------- Barra inferior del celular: solo lo que cabe ----------
   useEffect(() => {
@@ -261,16 +267,6 @@ export function AppSidebar({
 
   const accountItems: MenuItem[] = [
     { label: 'Mi perfil', hint: 'Foto, datos y seguridad', icon: 'user', onSelect: () => go('settings') },
-    ...(user.role === 'admin'
-      ? [
-          {
-            label: adminView ? 'Vista de empleado' : 'Panel administrativo',
-            hint: adminView ? 'Tu asistencia y tus solicitudes' : 'Gestiona al equipo',
-            icon: 'switch' as IconName,
-            onSelect: onToggleAdmin,
-          },
-        ]
-      : []),
     {
       label: collapsed ? 'Expandir menú' : 'Contraer menú',
       hint: 'Atajo: Ctrl + B',
@@ -278,6 +274,7 @@ export function AppSidebar({
       onSelect: onToggleCollapsed,
     },
   ]
+  
 
   return (
     <aside
@@ -367,38 +364,37 @@ export function AppSidebar({
       </nav>
 
       <div className="sidebar-bottom">
-        <div className="account-row">
-          <ActionMenu
-            label="Opciones de mi cuenta"
-            items={accountItems}
-            align="left"
-            triggerClassName="account-trigger"
-          >
-            <span className="account-avatar" data-tip={user.full_name}>
-              <Avatar user={user} size="md" />
-            </span>
-
-            <span className="account-text">
-              <strong>{user.full_name}</strong>
-              <small>{user.role === 'admin' ? 'Administrador' : 'Empleado'}</small>
-            </span>
-
-            <span className="account-caret" aria-hidden="true">
-              <Icon name="right" size={12} />
-            </span>
-          </ActionMenu>
-
+        {user.role === 'admin' && (
           <button
             type="button"
-            className="account-logout"
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-            data-tip="Cerrar sesión"
-            onClick={onLogout}
+            className="sidebar-mode"
+            data-tip={adminView ? 'Vista de empleado' : 'Panel administrativo'}
+            onClick={onToggleAdmin}
           >
-            <Icon name="logout" size={17} />
+            <span className="nav-icon">
+              <Icon name="switch" size={17} />
+            </span>
+            <span className="nav-label">{adminView ? 'Vista de empleado' : 'Panel administrativo'}</span>
           </button>
-        </div>
+        )}
+
+        <ActionMenu label="Opciones de mi cuenta" items={accountItems} align="left" triggerClassName="account-trigger">
+          <span className="account-avatar" data-tip={user.full_name}>
+            <Avatar user={user} size="md" />
+          </span>
+
+          <span className="account-text">
+            <strong>{user.full_name}</strong>
+            <small>{roleLabel}</small>
+          </span>
+        </ActionMenu>
+
+        <button type="button" className="sidebar-logout" data-tip="Cerrar sesión" onClick={onLogout}>
+          <span className="nav-icon">
+            <Icon name="logout" size={17} />
+          </span>
+          <span className="nav-label">Cerrar sesión</span>
+        </button>
       </div>
 
       {tip &&

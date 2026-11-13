@@ -113,7 +113,7 @@ export function ActionMenu({
                 aria-expanded={open}
                 onClick={() => setOpen(o => !o)}
             >
-                {trigger ?? <Icon name="more" size={18} />}
+                {trigger ?? children ?? <Icon name="more" size={18} />}
             </button>
 
             {open &&
