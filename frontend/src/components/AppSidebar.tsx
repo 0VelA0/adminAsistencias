@@ -13,6 +13,7 @@ import { Logo } from './Login/Logo'
 import { useAppEvent } from '../lib/events'
 import { useCoalesced } from '../lib/useCoalesced'
 import { useAsync } from '../lib/useAsync'
+import { SidebarAccount } from './SidebarAccount'
 
 
 type Item = { page: Page; icon: IconName; label: string }
@@ -264,16 +265,6 @@ export function AppSidebar({
     setMoreOpen(false)
     onPageChange(page)
   }
-
-  const accountItems: MenuItem[] = [
-    { label: 'Mi perfil', hint: 'Foto, datos y seguridad', icon: 'user', onSelect: () => go('settings') },
-    {
-      label: collapsed ? 'Expandir menú' : 'Contraer menú',
-      hint: 'Atajo: Ctrl + B',
-      icon: collapsed ? 'right' : 'left',
-      onSelect: onToggleCollapsed,
-    },
-  ]
   
 
   return (
@@ -364,37 +355,16 @@ export function AppSidebar({
       </nav>
 
       <div className="sidebar-bottom">
-        {user.role === 'admin' && (
-          <button
-            type="button"
-            className="sidebar-mode"
-            data-tip={adminView ? 'Vista de empleado' : 'Panel administrativo'}
-            onClick={onToggleAdmin}
-          >
-            <span className="nav-icon">
-              <Icon name="switch" size={17} />
-            </span>
-            <span className="nav-label">{adminView ? 'Vista de empleado' : 'Panel administrativo'}</span>
-          </button>
-        )}
-
-        <ActionMenu label="Opciones de mi cuenta" items={accountItems} align="left" triggerClassName="account-trigger">
-          <span className="account-avatar" data-tip={user.full_name}>
-            <Avatar user={user} size="md" />
-          </span>
-
-          <span className="account-text">
-            <strong>{user.full_name}</strong>
-            <small>{roleLabel}</small>
-          </span>
-        </ActionMenu>
-
-        <button type="button" className="sidebar-logout" data-tip="Cerrar sesión" onClick={onLogout}>
-          <span className="nav-icon">
-            <Icon name="logout" size={17} />
-          </span>
-          <span className="nav-label">Cerrar sesión</span>
-        </button>
+        <SidebarAccount
+          user={user}
+          roleLabel={roleLabel}
+          adminView={adminView}
+          collapsed={collapsed}
+          onProfile={() => go('settings')}
+          onToggleAdmin={onToggleAdmin}
+          onToggleCollapsed={onToggleCollapsed}
+          onLogout={onLogout}
+        />
       </div>
 
       {tip &&
