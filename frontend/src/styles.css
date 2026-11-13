@@ -509,9 +509,60 @@ button.danger {
 
 /* Cuenta */
 .sidebar-bottom {
+  display: grid;
+  gap: 4px;
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--on-sidebar) 8%, transparent);
+}
+
+.sidebar-mode,
+.sidebar-logout {
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--on-sidebar-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color .15s, color .15s;
+}
+
+.sidebar-mode {
+  margin-bottom: 4px;
+  background: color-mix(in srgb, var(--on-sidebar) 8%, transparent);
+  color: var(--on-sidebar);
+}
+
+.sidebar-mode:hover {
+  background: color-mix(in srgb, var(--on-sidebar) 14%, transparent);
+}
+
+.sidebar-logout:hover {
+  background: color-mix(in srgb, #d9534f 16%, transparent);
+  color: #ff8a85;
+}
+
+.account-trigger {
+  gap: 12px;
+  padding: 8px 10px;
+}
+
+.account-avatar .avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.account-text strong {
+  font-size: 13px;
+}
+
+.account-text small {
+  font-size: 11px;
 }
 
 .account-trigger {
@@ -567,51 +618,9 @@ button.danger {
   color: var(--on-sidebar-muted);
 }
 
-.account-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.account-row .account-trigger {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Flecha discreta: solo aparece al pasar el ratón o con el menú abierto */
-.account-caret {
-  display: grid;
-  place-items: center;
-  color: var(--on-sidebar-muted);
-  opacity: 0;
-  transform: rotate(-90deg) translateY(-2px);
-  transition: opacity .2s, transform .2s;
-}
 
 .account-trigger:hover .account-caret,
 .account-trigger:focus-visible .account-caret,
-.account-trigger.open .account-caret {
-  opacity: 1;
-  transform: rotate(-90deg);
-}
-
-.account-logout {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--on-sidebar-muted);
-  transition: background-color .15s, color .15s;
-}
-
-.account-logout:hover {
-  background: color-mix(in srgb, #d9534f 18%, transparent);
-  color: #ff8a85;
-}
 
 /* Etiqueta flotante (menú contraído) */
 .sidebar-tooltip {
@@ -672,23 +681,15 @@ button.danger {
   .sidebar-collapsed .sidebar-brand-text,
   .sidebar-collapsed .today-text,
   .sidebar-collapsed .nav-label,
-  .sidebar-collapsed .account-text,
-  .sidebar-collapsed .account-caret {
+  .sidebar-collapsed .account-text {
     display: none;
-  }
-
-  .sidebar-collapsed .account-row {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .sidebar-collapsed .account-row .account-trigger {
-    width: 100%;
   }
 
   .sidebar-collapsed .today-chip,
   .sidebar-collapsed .sidebar-nav button,
-  .sidebar-collapsed .account-trigger {
+  .sidebar-collapsed .account-trigger,
+  .sidebar-collapsed .sidebar-mode,
+  .sidebar-collapsed .sidebar-logout {
     justify-content: center;
     padding-right: 0;
     padding-left: 0;
