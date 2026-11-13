@@ -186,16 +186,6 @@ export function CalendarPage({
                     </div>
                 </div>
 
-                <div className="calendar-legend">
-                    {Object.entries(TYPES)
-                        .filter(([type]) => type !== 'team_absence' || team)
-                        .map(([type, info]) => (
-                            <span key={type} className={`legend-item ${type}`}>
-                                <i /> {info.label}
-                            </span>
-                        ))}
-                </div>
-
                 <StateView state={events}>
                     {() =>
                         !ready ? (
