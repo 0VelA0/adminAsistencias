@@ -277,7 +277,6 @@ export function AppSidebar({
       icon: collapsed ? 'right' : 'left',
       onSelect: onToggleCollapsed,
     },
-    { label: 'Cerrar sesión', icon: 'logout', danger: true, dividerBefore: true, onSelect: onLogout },
   ]
 
   return (
@@ -368,20 +367,38 @@ export function AppSidebar({
       </nav>
 
       <div className="sidebar-bottom">
-        <ActionMenu label="Menú de mi cuenta" items={accountItems} align="left" triggerClassName="account-trigger">
-          <span className="account-avatar">
-            <Avatar user={user} size="md" />
-          </span>
+        <div className="account-row">
+          <ActionMenu
+            label="Opciones de mi cuenta"
+            items={accountItems}
+            align="left"
+            triggerClassName="account-trigger"
+          >
+            <span className="account-avatar" data-tip={user.full_name}>
+              <Avatar user={user} size="md" />
+            </span>
 
-          <span className="account-text">
-            <strong>{user.full_name}</strong>
-            <small>{user.role === 'admin' ? 'Administrador' : 'Empleado'}</small>
-          </span>
+            <span className="account-text">
+              <strong>{user.full_name}</strong>
+              <small>{user.role === 'admin' ? 'Administrador' : 'Empleado'}</small>
+            </span>
 
-          <span className="account-chevron">
-            <Icon name="more" size={16} />
-          </span>
-        </ActionMenu>
+            <span className="account-caret" aria-hidden="true">
+              <Icon name="right" size={12} />
+            </span>
+          </ActionMenu>
+
+          <button
+            type="button"
+            className="account-logout"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+            data-tip="Cerrar sesión"
+            onClick={onLogout}
+          >
+            <Icon name="logout" size={17} />
+          </button>
+        </div>
       </div>
 
       {tip &&
