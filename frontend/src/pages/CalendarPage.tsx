@@ -7,7 +7,7 @@ import { Icon } from '../components/Icon'
 import type { IconName } from '../components/Icon'
 import { StateView } from '../components/StatusBlocks'
 import { PageHeader } from '../components/PageHeader'
-import { MonthPicker } from '../components/monthPicker'
+import { MonthPicker } from '../components/MonthPicker'
 
 const TYPES: Record<CalendarEvent['type'], { label: string; icon: IconName }> = {
     meeting: { label: 'Reunión', icon: 'megaphone' },
