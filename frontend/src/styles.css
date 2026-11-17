@@ -2106,6 +2106,21 @@ button.danger {
   animation: pop .4s .8s cubic-bezier(.2, .7, .2, 1) backwards, rd-pulse 1.8s 1.2s ease-out infinite;
 }
 
+.rd-kind-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.rd-date strong.rd-amount {
+  font-size: 26px;
+  overflow-wrap: anywhere;
+}
+
+.rd-timeline .rd-line-text {
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 /* ---------- 8. GRÁFICAS ---------- */
 
 .donut {

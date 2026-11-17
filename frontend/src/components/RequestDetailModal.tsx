@@ -59,7 +59,7 @@ function dateTime(value?: string | null) {
     })
 }
 
-function DateTile({ value, label }: { value: string; label: string }) {
+export function DateTile({ value, label }: { value: string; label: string }) {
     const d = toDate(value)
 
     return (

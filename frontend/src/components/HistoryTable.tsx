@@ -1,9 +1,15 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatDay } from '../lib/format'
 import { matchesFilter } from '../lib/history'
 import type { HistoryFilter, HistoryRow } from '../lib/history'
+import { HistoryDetailModal } from './HistoryDetailModal'
+import { Icon } from './Icon'
 
 const PAGE_SIZE = 8
+
+const [query, setQuery] = useState('')
+const [page, setPage] = useState(1)
+const [selected, setSelected] = useState<HistoryRow | null>(null)
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
     { value: 'all', label: 'Todo' },
@@ -68,6 +74,7 @@ export function HistoryTable({
     useEffect(() => setPage(1), [query, filter])
 
     return (
+        
         <section id="history-table" className="dashboard-card history-card">
             <div className="section-title history-title">
                 <h2>Mi historial consolidado</h2>
@@ -107,59 +114,37 @@ export function HistoryTable({
                                     <th>Detalle</th>
                                     <th>Horas / Días</th>
                                     <th>Estado</th>
-                                    <th>Acciones</th>
+                                    <th aria-label="Ver detalle" />
                                 </tr>
                             </thead>
 
                             <tbody>
-                                {visible.map(row => {
-                                    const open = openId === row.id
-
-                                    return (
-                                        <Fragment key={row.id}>
-                                            <tr>
-                                                <td data-label="Fecha">
-                                                    {formatDay(row.sortKey)}
-                                                </td>
-                                                <td data-label="Tipo">
-                                                    {row.icon} {row.title}
-                                                </td>
-                                                <td data-label="Detalle">{row.detail}</td>
-                                                <td data-label="Horas / Días">{row.amount}</td>
-                                                <td data-label="Estado">
-                                                    <span className={`badge ${row.badge}`}>
-                                                        {row.label}
-                                                    </span>
-                                                </td>
-                                                <td data-label="Acciones">
-                                                    <button
-                                                        type="button"
-                                                        className="link"
-                                                        onClick={() =>
-                                                            setOpenId(open ? null : row.id)
-                                                        }
-                                                    >
-                                                        {open ? 'Ocultar' : 'Ver detalles'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-
-                                            {open && (
-                                                <tr className="detail-row">
-                                                    <td colSpan={6}>
-                                                        {row.lines.length ? (
-                                                            row.lines.map((line, i) => (
-                                                                <p key={i}>{line}</p>
-                                                            ))
-                                                        ) : (
-                                                            <p>Sin información adicional.</p>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </Fragment>
-                                    )
-                                })}
+                                {visible.map(row => (
+                                    <tr
+                                        key={row.id}
+                                        className="clickable-row"
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`Ver detalle: ${row.title}, ${formatDay(row.sortKey)}`}
+                                        onClick={() => setSelected(row)}
+                                        onKeyDown={e =>
+                                            (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setSelected(row))
+                                        }
+                                    >
+                                        <td data-label="Fecha">{formatDay(row.sortKey)}</td>
+                                        <td data-label="Tipo">
+                                            {row.icon} {row.title}
+                                        </td>
+                                        <td data-label="Detalle">{row.detail}</td>
+                                        <td data-label="Horas / Días">{row.amount}</td>
+                                        <td data-label="Estado">
+                                            <span className={`badge ${row.badge}`}>{row.label}</span>
+                                        </td>
+                                        <td className="row-chevron" aria-hidden="true">
+                                            <Icon name="right" size={14} />
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -200,6 +185,7 @@ export function HistoryTable({
                     </button>
                 </div>
             )}
+            {selected && <HistoryDetailModal row={selected} onClose={() => setSelected(null)} />}
         </section>
     )
 }
