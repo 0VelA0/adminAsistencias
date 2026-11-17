@@ -5,11 +5,7 @@ import type { HistoryFilter, HistoryRow } from '../lib/history'
 import { HistoryDetailModal } from './HistoryDetailModal'
 import { Icon } from './Icon'
 
-const PAGE_SIZE = 8
 
-const [query, setQuery] = useState('')
-const [page, setPage] = useState(1)
-const [selected, setSelected] = useState<HistoryRow | null>(null)
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
     { value: 'all', label: 'Todo' },
@@ -51,6 +47,10 @@ export function HistoryTable({
     const [query, setQuery] = useState('')
     const [page, setPage] = useState(1)
     const [openId, setOpenId] = useState<string | null>(null)
+
+    const PAGE_SIZE = 8
+
+    const [selected, setSelected] = useState<HistoryRow | null>(null)
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
