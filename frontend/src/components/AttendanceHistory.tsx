@@ -1,6 +1,9 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { AttendanceRecord } from '../lib/types'
 import { groupByDay } from '../lib/attendance'
+import type { DayRow } from '../lib/attendance'
+import { AttendanceDetailModal, locationLabel } from './AttendanceDetailModal'
+import { Icon } from './Icon'
 
 const formatDate = (value: string) =>
     new Date(`${value}T00:00:00`).toLocaleDateString('es-MX', {
@@ -10,18 +13,11 @@ const formatDate = (value: string) =>
     })
 
 const formatTime = (value: string) =>
-    new Date(value).toLocaleTimeString('es-MX', {
-        hour: '2-digit',
-        minute: '2-digit',
-    })
+    new Date(value).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
-export function AttendanceHistory({
-    records,
-}: {
-    records: AttendanceRecord[]
-}) {
+export function AttendanceHistory({ records }: { records: AttendanceRecord[] }) {
     const [query, setQuery] = useState('')
-    const [openDate, setOpenDate] = useState<string | null>(null)
+    const [selected, setSelected] = useState<DayRow | null>(null)
 
     const days = useMemo(() => {
         const all = groupByDay(records)
@@ -31,7 +27,8 @@ export function AttendanceHistory({
         return all.filter(day =>
             [
                 formatDate(day.date),
-                day.status === 'late' ? 'Retardo' : 'puntual',
+                day.status === 'late' ? 'retardo' : 'puntual',
+                locationLabel(day.entry ?? day.exit),
                 day.entry?.note ?? '',
                 day.exit?.note ?? '',
             ]
@@ -51,7 +48,7 @@ export function AttendanceHistory({
             <div className="table-toolbar">
                 <input
                     type="search"
-                    placeholder="Buscar fecha, estado o nota…"
+                    placeholder="Buscar fecha, estado, ubicación o nota…"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
                 />
@@ -71,93 +68,45 @@ export function AttendanceHistory({
                                     <th>Horas totales</th>
                                     <th>Ubicación</th>
                                     <th>Estado</th>
-                                    <th>Acciones</th>
+                                    <th aria-label="Ver detalle" />
                                 </tr>
                             </thead>
 
                             <tbody>
-                                {days.map(day => {
-                                    const open = openDate === day.date
-                                    const first = day.entry ?? day.exit
-
-                                    return (
-                                        <Fragment key={day.date}>
-                                            <tr>
-                                                <td data-label="Fecha">
-                                                    {formatDate(day.date)}
-                                                </td>
-                                                <td data-label="Entrada">
-                                                    {day.entry
-                                                        ? formatTime(day.entry.recorded_at)
-                                                        : '—'}
-                                                    {day.status === 'late' && ' ⏱'}
-                                                </td>
-                                                <td data-label="Salida">
-                                                    {day.exit
-                                                        ? formatTime(day.exit.recorded_at)
-                                                        : '—'}
-                                                </td>
-                                                <td data-label="Horas totales">
-                                                    {day.hours}
-                                                </td>
-                                                <td data-label="Ubicación">
-                                                    {first?.source === 'admin' ? 'Registro manual' : first?.location_mode === 'remote' ? 'Remoto' : 'Oficina Central'}
-                                                </td>
-                                                <td data-label="Estado">
-                                                    <span
-                                                        className={`badge ${
-                                                            day.status === 'late' ? 'late' : 'normal'
-                                                        }`}
-                                                    >
-                                                        {day.status === 'late'
-                                                            ? 'Retardo'
-                                                            : 'Puntual'}
-                                                    </span>
-                                                </td>
-                                                <td data-label="Acciones">
-                                                    <button
-                                                        type="button"
-                                                        className="link"
-                                                        onClick={() =>
-                                                            setOpenDate(open ? null : day.date)
-                                                        }
-                                                    >
-                                                        {open ? 'Ocultar' : 'Ver detalles'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-
-                                            {open && (
-                                                <tr className="detail-row">
-                                                    <td colSpan={7}>
-                                                        {[day.entry, day.exit].map(
-                                                            r =>
-                                                                r && (
-                                                                    <p key={r.id}>
-                                                                        <strong>
-                                                                            {r.kind === 'entry'
-                                                                                ? 'Entrada'
-                                                                                : 'Salida'}
-                                                                            :
-                                                                        </strong>{' '}
-                                                                        a {Math.round(r.distance_meters)} m
-                                                                        de la oficina (precisión{' '}
-                                                                        {Math.round(r.accuracy_meters)} m)
-                                                                        {r.note && ` · Nota: ${r.note}`}
-                                                                    </p>
-                                                                )
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </Fragment>
-                                    )
-                                })}
+                                {days.map(day => (
+                                    <tr
+                                        key={day.date}
+                                        className="clickable-row"
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`Ver detalle del ${formatDate(day.date)}`}
+                                        onClick={() => setSelected(day)}
+                                        onKeyDown={e =>
+                                            (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setSelected(day))
+                                        }
+                                    >
+                                        <td data-label="Fecha">{formatDate(day.date)}</td>
+                                        <td data-label="Entrada">{day.entry ? formatTime(day.entry.recorded_at) : '—'}</td>
+                                        <td data-label="Salida">{day.exit ? formatTime(day.exit.recorded_at) : '—'}</td>
+                                        <td data-label="Horas totales">{day.hours}</td>
+                                        <td data-label="Ubicación">{locationLabel(day.entry ?? day.exit)}</td>
+                                        <td data-label="Estado">
+                                            <span className={`badge ${day.status === 'late' ? 'late' : 'normal'}`}>
+                                                {day.status === 'late' ? 'Retardo' : 'Puntual'}
+                                            </span>
+                                        </td>
+                                        <td className="row-chevron" aria-hidden="true">
+                                            <Icon name="right" size={14} />
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
                 </div>
             )}
+
+            {selected && <AttendanceDetailModal day={selected} onClose={() => setSelected(null)} />}
         </section>
     )
 }

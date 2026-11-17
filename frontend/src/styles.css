@@ -1751,6 +1751,35 @@ button.danger {
 .rd-card.rejected  { --rd-tone: var(--bad);   --rd-tone-bg: var(--bad-bg); }
 .rd-card.cancelled { --rd-tone: var(--muted); --rd-tone-bg: var(--neutral-bg); }
 
+.rd-card.live {
+  --rd-tone: var(--primary);
+  --rd-tone-bg: var(--primary-soft);
+}
+
+.rd-card.live .rd-status-icon {
+  animation: pop .45s .2s cubic-bezier(.2, .7, .2, 1) backwards, rd-pulse 1.8s 1s ease-out infinite;
+}
+
+.rd-date.missing {
+  border-style: dashed;
+  background: var(--surface);
+}
+
+.rd-date.missing strong {
+  color: var(--field-line);
+}
+
+.rd-note {
+  font-style: italic;
+}
+
+.data-table .row-chevron {
+  width: 1%;
+  padding-right: 10px;
+  color: var(--field-line);
+  transition: color .15s, transform .15s;
+}
+
 @keyframes rd-in {
   from { opacity: 0; transform: translateY(18px) scale(.96); }
   to   { opacity: 1; transform: none; }
@@ -8043,6 +8072,11 @@ button.danger {
   }
 
   .permissions-table .row-chevron {
+    display: none;
+  }
+
+  .permissions-table .row-chevron,
+  .data-table .row-chevron {
     display: none;
   }
 }
