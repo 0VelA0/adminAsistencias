@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { VacationRequest } from '../lib/types'
-import { STATUS_LABEL, formatRange } from '../lib/format'
+import { STATUS_LABEL, formatRange, ymd } from '../lib/format'
 import { RequestDetailModal, pickNumber, pickText } from './RequestDetailModal'
 import type { RequestDetail } from './RequestDetailModal'
 import { Icon } from './Icon'
@@ -21,9 +21,20 @@ function toDetail(r: VacationRequest): RequestDetail {
     }
 }
 
-export function VacationRequestsCard({ requests }: { requests: VacationRequest[] }) {
+export function VacationRequestsCard({
+    requests,
+    onOpenHistory,
+}: {
+    requests: VacationRequest[]
+    onOpenHistory?: () => void
+}) {
     const [selected, setSelected] = useState<VacationRequest | null>(null)
-    const latest = requests.slice(0, 4)
+    const today = ymd(new Date())
+
+    // Pendientes, o aprobadas cuyo periodo aún no empieza; la más próxima primero
+    const upcoming = requests
+        .filter(r => r.status === 'pending' || (r.status === 'approved' && r.start_date.slice(0, 10) > today))
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
 
     return (
         <article className="dashboard-card permissions-card">
@@ -31,12 +42,27 @@ export function VacationRequestsCard({ requests }: { requests: VacationRequest[]
                 <div>
                     <p className="eyebrow">VACACIONES</p>
                     <h2>Mis solicitudes de vacaciones</h2>
+                    {upcoming.length > 0 && (
+                        <small>
+                            {upcoming.length} {upcoming.length === 1 ? 'pendiente o próxima' : 'pendientes o próximas'}
+                        </small>
+                    )}
                 </div>
                 <Icon name="clipboard" />
             </div>
 
-            {!latest.length ? (
-                <p className="pending-request-empty">Aún no has solicitado vacaciones.</p>
+            {!upcoming.length ? (
+                <p className="pending-request-empty">
+                    No tienes solicitudes pendientes ni vacaciones próximas.
+                    {onOpenHistory && (
+                        <>
+                            {' '}
+                            <button type="button" className="link" onClick={onOpenHistory}>
+                                Ver historial
+                            </button>
+                        </>
+                    )}
+                </p>
             ) : (
                 <div className="permissions-scroll">
                     <table className="permissions-table">
@@ -52,7 +78,7 @@ export function VacationRequestsCard({ requests }: { requests: VacationRequest[]
                         </thead>
 
                         <tbody>
-                            {latest.map(r => (
+                            {upcoming.map(r => (
                                 <tr
                                     key={r.id}
                                     className="clickable-row"

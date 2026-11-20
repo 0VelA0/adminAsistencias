@@ -47,11 +47,7 @@ function App() {
     
     const IDLE_WARNING = 60_000    // aviso 1 minuto antes
 
-    const [token, setToken] = useState(
-        localStorage.getItem(
-            'attendance_token'
-        ) || ''
-    )
+    const [token, setToken] = useState(() => readToken() || '')
 
     const [schedule, setSchedule] = useState<Schedule | null>(null)
 
@@ -174,14 +170,6 @@ function App() {
         setVacationRequests(data)
     }
 
-
-    useEffect(() => {
-        if (token) {
-            load()
-            loadVacationRequests().catch(() => undefined)
-        }
-    }, [token])
-
     useEffect(() => {
         if (!loadError) return
 
@@ -261,6 +249,11 @@ function App() {
         setActivePage('team')
     }
 
+    const changePage = (page: Page) => {
+        setOrgFocus(null)
+        setActivePage(page)
+    }
+
     if (!token) {
         return (
             <LoginPage
@@ -297,7 +290,7 @@ function App() {
                 adminView={adminView}
                 collapsed={collapsed}
                 onToggleCollapsed={toggleCollapsed}
-                onPageChange={setActivePage}
+                onPageChange={changePage}
                 onToggleAdmin={toggleAdmin}
                 onLogout={logout}
             />
@@ -325,7 +318,7 @@ function App() {
                             )}
 
                             {activePage === 'users' && (
-                                <UsersPage token={token} currentUser={user} />
+                                <UsersPage token={token} currentUser={user} onShowInChart={showInOrgChart} />
                             )}
 
                             {activePage === 'settings' && (
@@ -405,9 +398,6 @@ function App() {
                                 user={user} 
                                 onUserChange={setUser} 
                             />
-                        )}
-                        {activePage === 'users' && user.role === 'admin' && (
-                            <UsersPage token={token} currentUser={user} onShowInChart={showInOrgChart} />
                         )}
                        
                         {activePage === 'spaces' && <SpacesPage token={token} user={user} />}

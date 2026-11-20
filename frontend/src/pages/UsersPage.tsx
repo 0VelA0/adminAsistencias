@@ -30,7 +30,7 @@ export function UsersPage({
 }: {
     token: string
     currentUser: User,
-    onShowInChart?: (userId: number) => void
+    onShowInChart: (userId: number) => void
 }) {
     const list = useAsync(() => api<User[]>('/users', {}, token), [token])
     const users = list.data ?? []
