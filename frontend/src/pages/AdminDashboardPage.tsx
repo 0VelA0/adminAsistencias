@@ -15,6 +15,10 @@ import { SearchField } from '../components/SearchField';
 import { PageHeader } from '../components/PageHeader'
 import { useCountUp } from '../lib/useCountUp'
 import { useAppEvent } from '../lib/events'
+import { AbsencesWidget } from '../components/AbsencesWidget'
+import { AdminRequestsHub } from '../components/AdminRequestsHub'
+
+
 
 type Section = 'home' | 'requests' | 'attendance'
 
@@ -192,6 +196,8 @@ function AdminHome({
                     onClick={() => onNavigate('admin-requests')}
                 />
             </section>
+
+            <AbsencesWidget token={token} onNavigate={onNavigate} />
 
             <TodayOverview state={overview} />
         </>
@@ -391,7 +397,12 @@ export function AdminDashboardPage({
                 <AdminHome token={token} refresh={refresh} onNavigate={onNavigate} />
             )}
 
-            {section === 'requests' && <AdminRequestsPanel key={refresh} token={token} />}
+            {section === 'requests' && (
+                <AdminRequestsHub
+                    token={token}
+                    reviewPanel={<AdminRequestsPanel token={token} />}
+                />
+            )}
 
             {section === 'attendance' && <AdminAttendance token={token} refresh={refresh} />}
         </div>

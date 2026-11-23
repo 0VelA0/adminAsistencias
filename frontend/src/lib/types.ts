@@ -149,6 +149,7 @@ export type Page =
     | 'admin-reports'
     | 'news'
     | 'calendar'
+    | 'admin-vacations'
 
 export type Branding = {
     company_name: string

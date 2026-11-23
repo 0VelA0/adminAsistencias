@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { formatRange, parseServerDate, toDate, ymd } from '../lib/format'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
+import { Avatar } from './Avatar'
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
@@ -19,6 +20,7 @@ export type RequestDetail = {
     reviewed_at?: string | null
     reviewed_by_name?: string | null
     comment?: string | null
+    person?: { full_name: string; avatar?: string | null; email?: string | null; department?: string | null } | null
 }
 
 /** Lee un campo de texto aunque no esté declarado en el tipo (p. ej. el comentario del admin). */
@@ -108,17 +110,24 @@ export function RequestDetailModal({ request, onClose }: { request: RequestDetai
         }
     }, [onClose])
 
+    const forAdmin = Boolean(request.person)
+
     const reviewStep =
         request.status === 'pending'
-            ? { title: 'En revisión', text: 'Esperando la respuesta de tu jefe o de RH.', tone: 'current' }
+            ? {
+                title: 'En revisión',
+                text: forAdmin ? 'Pendiente de tu respuesta en Solicitudes.' : 'Esperando la respuesta de tu jefe o de RH.',
+                tone: 'current',
+            }
             : request.status === 'cancelled'
-              ? { title: 'Cancelaste la solicitud', text: dateTime(request.reviewed_at), tone: 'cancelled' }
-              : {
+            ? { title: forAdmin ? 'El empleado la canceló' : 'Cancelaste la solicitud', text: dateTime(request.reviewed_at), tone: 'cancelled' }
+            : {
                     title: `${request.status === 'approved' ? 'Aprobada' : 'Rechazada'}${request.reviewed_by_name ? ` por ${request.reviewed_by_name}` : ''}`,
                     text: dateTime(request.reviewed_at),
                     tone: request.status,
                 }
 
+        
     return createPortal(
         <div className="modal-backdrop" onClick={onClose}>
             <div
@@ -190,6 +199,18 @@ export function RequestDetailModal({ request, onClose }: { request: RequestDetai
                             <dd>{request.reviewed_by_name ?? (request.status === 'pending' ? 'Pendiente' : '—')}</dd>
                         </div>
                     </dl>
+
+                    {request.person && (
+                        <div className="rd-person rd-step">
+                            <Avatar user={{ full_name: request.person.full_name, avatar: request.person.avatar ?? null }}
+                                size="md" 
+                            />
+                            <div>
+                                <strong>{request.person.full_name}</strong>
+                                <small>{[request.person.department, request.person.email].filter(Boolean).join(' · ') || 'Empleado'}</small>
+                            </div>
+                        </div>
+                    )}
 
                     {request.comment && (
                         <blockquote className="rd-comment rd-step">

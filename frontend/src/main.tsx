@@ -39,6 +39,7 @@ import { NewsPage } from './pages/NewsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { clearToken, isRemembered, readToken, saveToken } from './lib/session'
 import { useIdleTimeout } from './lib/useIdleTimeout'
+import { AdminVacationsPage } from './pages/AdminVacationsPage'
 
 
 function App() {
@@ -336,6 +337,8 @@ function App() {
                             {activePage === 'news' && <NewsPage token={token} user={user} />}
 
                             {activePage === 'calendar' && <CalendarPage token={token} user={user} onNavigate={goTo} />}
+
+                            {activePage === 'admin-vacations' && <AdminVacationsPage token={token} />}
                         </>
                 ) : (
                     <>

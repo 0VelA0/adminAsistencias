@@ -865,5 +865,17 @@ class FeedIn(BaseModel):
 class ArchiveIn(BaseModel):
     archived: bool
 
+class VacationBalanceAdminOut(BaseModel):
+    user_id: int
+    full_name: str
+    avatar: str | None = None
+    department: str | None = None
+    position: str | None = None
+    hire_date: date | None = None
+    year: int
+    entitlement: int
+    used: int
+    pending: int
+    available: int
     
 TokenOut.model_rebuild()

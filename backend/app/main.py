@@ -108,7 +108,8 @@ from .schemas import (
     FeedIn,
     ArchiveIn,
     ReportDayOut,
-    ReportIncidentOut
+    ReportIncidentOut,
+    VacationBalanceAdminOut
 )
 
 
@@ -2324,6 +2325,39 @@ def create_admin_vacation(
     db.refresh(vacation)
 
     return vacation
+
+@app.get("/vacations/balances", response_model=list[VacationBalanceAdminOut])
+def vacation_balances(
+    year: int | None = None,
+    _: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    year = year or get_work_date().year
+    profiles = {p.user_id: p for p in db.scalars(select(EmployeeProfile)).all()}
+    result = []
+
+    for person in attendance_users(db):
+        balance = build_vacation_balance(db, person, year)
+        data = balance.model_dump() if hasattr(balance, "model_dump") else dict(balance)
+        profile = profiles.get(person.id)
+
+        result.append(
+            VacationBalanceAdminOut(
+                user_id=person.id,
+                full_name=person.full_name,
+                avatar=person.avatar,
+                department=profile.department if profile else None,
+                position=profile.position if profile else None,
+                hire_date=person.hire_date,
+                year=year,
+                entitlement=data["entitlement"],
+                used=data["used"],
+                pending=data["pending"],
+                available=data["available"],
+            )
+        )
+
+    return sorted(result, key=lambda b: b.full_name.lower())
 
 # =========================================================
 # PERMISOS
@@ -6092,7 +6126,7 @@ async def events_stream(
     request: Request,
     user: User = Depends(authenticated_user),
 ):
-    user_id, is_admin = user.id, user.role == "admin"
+    user_id, is_admin = user.id, user.role == "fadmin"
 
     async def stream():
         loop = asyncio.get_running_loop()

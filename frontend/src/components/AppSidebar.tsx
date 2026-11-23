@@ -49,6 +49,7 @@ const ADMIN_GROUPS: Group[] = [
       { page: 'admin-requests', icon: 'clipboard', label: 'Solicitudes' },
       { page: 'admin-attendance', icon: 'clock', label: 'Asistencia' },
       { page: 'admin-reports', icon: 'download', label: 'Reportes' },
+      { page: 'admin-vacations', icon: 'sun', label: 'Vacaciones' },
     ],
   },
   {
