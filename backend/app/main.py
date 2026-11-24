@@ -2350,10 +2350,10 @@ def vacation_balances(
                 position=profile.position if profile else None,
                 hire_date=person.hire_date,
                 year=year,
-                entitlement=data["entitlement"],
-                used=data["used"],
-                pending=data["pending"],
-                available=data["available"],
+                entitlement=data["total_days"],
+                used=data["used_days"],
+                pending=data["pending_days"],
+                available=data["available_days"],
             )
         )
 
