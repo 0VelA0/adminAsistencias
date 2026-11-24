@@ -53,15 +53,6 @@ const ADMIN_GROUPS: Group[] = [
     ],
   },
   {
-    label: 'Empresa',
-    items: [
-      { page: 'news', icon: 'megaphone', label: 'Comunicados' },
-      { page: 'calendar', icon: 'calendar', label: 'Calendario' },
-      { page: 'team', icon: 'org', label: 'Equipo' },
-      { page: 'admin-spaces', icon: 'building', label: 'Espacios' },
-    ],
-  },
-  {
     label: 'Administración',
     items: [
       { page: 'users', icon: 'users', label: 'Usuarios' },
