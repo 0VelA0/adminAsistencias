@@ -44,7 +44,7 @@ import { AdminVacationsPage } from './pages/AdminVacationsPage'
 
 function App() {
 
-    const IDLE_LIMIT = 30 * 60_000 // 30 minutos sin actividad
+    const IDLE_LIMIT = 7 * 24 * 60 * 60_000 // 7 días sin actividad
     
     const IDLE_WARNING = 60_000    // aviso 1 minuto antes
 
